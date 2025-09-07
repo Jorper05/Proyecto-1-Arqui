@@ -10,9 +10,15 @@ La visualización utiliza colores y caracteres definidos en un archivo de config
 - `inventario.txt`: Archivo de inventario con pares `nombre:cantidad`.
 
 ## Configuración (`config.ini`)
-
 Prueba de configuración:
 caracter_barra:█
 color_barra:92
 color_fondo:40
+
+## Inventario (`inventario.txt`)
+manzanas:12
+peras:8
+naranjas:25
+kiwis:5
+
 
