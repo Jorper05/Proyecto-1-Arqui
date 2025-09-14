@@ -98,4 +98,85 @@ _start:
     mov rdi, r12
     syscall
 
-   
+    ; Procesar inventario
+    mov rsi, buffer_inv
+    mov rdi, nombres
+    mov rbx, cantidades
+    call parse_inventario
+
+    ; Ordenar inventario
+    call sort_inventory
+
+    ; Salir
+    mov rax, 60
+    xor rdi, rdi
+    syscall
+
+
+    ; Salir
+    mov rax, 60
+    xor rdi, rdi
+    syscall
+
+error:
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, err_msg
+    mov rdx, err_len
+    syscall
+    mov rax, 60
+    mov rdi, 1
+
+
+
+   .compare_chars:
+    mov al, [rdi + r8]
+    mov bl, [rdx + r8]
+    cmp al, bl
+    je .next_char
+    jb .no_swap
+    jmp .do_swap
+.next_char:
+    inc r8
+    cmp r8, 32
+    jne .compare_chars
+    jmp .no_swap
+
+.do_swap:
+    mov r8, 0
+.swap_loop:
+    mov al, [rdi + r8]
+    mov bl, [rdx + r8]
+    mov [rdi + r8], bl
+    mov [rdx + r8], al
+    inc r8
+    cmp r8, 32
+    jne .swap_loop
+
+    mov rdi, cantidades
+    mov rdx, cantidades
+    mov r8, rsi
+    imul r8, 8
+    add rdi, r8
+    mov r9, rsi
+    inc r9
+    imul r9, 8
+    add rdx, r9
+
+    mov r8, 0
+.swap_qty:
+    mov al, [rdi + r8]
+    mov bl, [rdx + r8]
+    mov [rdi + r8], bl
+    mov [rdx + r8], al
+    inc r8
+    cmp r8, 8
+    jne .swap_qty
+
+.no_swap:
+    inc rsi
+    cmp rsi, 3
+    jl .inner_loop
+    loop .outer_loop
+    ret
+
