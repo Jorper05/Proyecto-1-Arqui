@@ -108,7 +108,7 @@ _start:
     call sort_inventory
 
     ; Dibujar gráfico
-    call draw_graph
+    call draw\_graph
 
     ; Salir
     mov rax, 60
@@ -195,7 +195,7 @@ parse_inventario:
 .next_line:
     mov rdx, 0
 .read_name:
-    mov al, [rsi]
+     mov al, [rsi]
     cmp al, ':'
     jne error_format
     cmp al, ':'
@@ -204,10 +204,7 @@ parse_inventario:
     je .done
     cmp al, 0xA
     je .next_line
-mov r10, rcx
-imul r10, 32
-add r10, rdx
-mov [rdi + r10], al
+    mov [rdi + rcx*32 + rdx], al
     inc rdx
     inc rsi
     jmp .read_name
@@ -225,10 +222,7 @@ mov [rdi + r10], al
     je .store_next
     cmp al, 0
     je .done
-mov r11, rcx
-imul r11, 8
-add r11, rdx
-mov [rbx + r11], al
+    mov [rbx + rcx*8 + rdx], al
     inc rdx
     inc rsi
     jmp .read_digits
@@ -261,10 +255,13 @@ sort_inventory:
     add rdx, r9
 
     mov r8, 0
-
 .compare_chars:
-    mov al, [rdi + r8]
-    mov bl, [rdx + r8]
+mov r10, rdi
+add r10, r8
+mov al, [r10]
+mov r11, rdx
+add r11, r8
+mov bl, [r11]
     cmp al, bl
     je .next_char
     jb .no_swap
@@ -278,10 +275,14 @@ sort_inventory:
 .do_swap:
     mov r8, 0
 .swap_loop:
-    mov al, [rdi + r8]
-    mov bl, [rdx + r8]
-    mov [rdi + r8], bl
-    mov [rdx + r8], al
+mov r10, rdi
+add r10, r8
+mov al, [r10]
+mov r11, rdx
+add r11, r8
+mov bl, [r11]
+mov [r10], bl
+mov [r11], al
     inc r8
     cmp r8, 32
     jne .swap_loop
@@ -298,10 +299,14 @@ sort_inventory:
 
     mov r8, 0
 .swap_qty:
-    mov al, [rdi + r8]
-    mov bl, [rdx + r8]
-    mov [rdi + r8], bl
-    mov [rdx + r8], al
+mov r10, rdi
+add r10, r8
+mov al, [r10]
+mov r11, rdx
+add r11, r8
+mov bl, [r11]
+mov [r10], bl
+mov [r11], al
     inc r8
     cmp r8, 8
     jne .swap_qty
@@ -310,6 +315,88 @@ sort_inventory:
     inc rsi
     cmp rsi, 3
     jl .inner_loop
-    loop .outer_loop
+dec rcx
+jnz .outer_loop
     ret
 
+draw_graph:
+    mov rcx, 0
+.next_item:
+    cmp rcx, 4
+    je .done
+
+    mov rsi, nombres
+    mov rdi, 1
+    mov rax, 1
+    mov rbx, rcx
+    imul rbx, 32
+    add rsi, rbx
+    mov rdx, 32
+    syscall
+
+    mov rsi, sep
+    mov rdx, sep_len
+    syscall
+
+    mov rsi, ansi_prefix
+    mov rdx, ansi_prefix_len
+    syscall
+
+    mov rsi, color_bg
+    mov rdx, 2
+    syscall
+
+    mov rsi, sep_color
+    mov rdx, 1
+    syscall
+
+    mov rsi, color_bar
+    mov rdx, 2
+    syscall
+
+    mov rsi, ansi_suffix
+    mov rdx, ansi_suffix_len
+    syscall
+
+    mov rbx, cantidades
+    mov r8, rcx
+    imul r8, 8
+    add rbx, r8
+    call draw_bar
+
+    mov rsi, reset_color
+    mov rdx, reset_color_len
+    syscall
+
+    mov rsi, cantidades
+    mov rbx, rcx
+    imul rbx, 8
+    add rsi, rbx
+    mov rdx, 8
+    syscall
+
+    mov rsi, newline
+    mov rdx, 1
+    syscall
+
+    inc rcx
+    jmp .next_item
+.done:
+    ret
+
+draw_bar:
+    mov al, [rbx]
+    sub al, '0'
+    mov cl, al
+.loop_bar:
+    cmp cl, 0
+    je .done_bar
+    mov rsi, char_bar
+    mov rdx, 1
+    mov rdi, 1
+    mov rax, 1
+    syscall
+    dec cl
+    jmp .loop_bar
+.done_bar:
+    ret
