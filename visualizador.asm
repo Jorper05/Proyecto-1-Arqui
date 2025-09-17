@@ -108,7 +108,7 @@ _start:
     call sort_inventory
 
     ; Dibujar gráfico
-    call draw\_graph
+    call draw_graph
 
     ; Salir
     mov rax, 60
@@ -204,7 +204,11 @@ parse_inventario:
     je .done
     cmp al, 0xA
     je .next_line
-    mov [rdi + rcx*32 + rdx], al
+mov r10, rdi
+imul r11, rcx, 32
+add r10, r11
+add r10, rdx
+mov [r10], al
     inc rdx
     inc rsi
     jmp .read_name
@@ -222,7 +226,11 @@ parse_inventario:
     je .store_next
     cmp al, 0
     je .done
-    mov [rbx + rcx*8 + rdx], al
+mov r10, rbx
+imul r11, rcx, 8
+add r10, r11
+add r10, rdx
+mov [r10], al
     inc rdx
     inc rsi
     jmp .read_digits
