@@ -123,7 +123,6 @@ error:
     syscall
     mov rax, 60
     mov rdi, 1
-
 error_format:
     mov rax, 1
     mov rdi, 1
@@ -135,9 +134,80 @@ error_format:
     syscall
     syscall
 
+; Funciones para buscar claves
+find_key_char_barra:
+    mov rdi, key_char_barra
+    call find_value
+    ret
 
+find_key_color_barra:
+    mov rdi, key_color_barra
+    call find_value
+    ret
 
+find_key_color_fondo:
+    mov rdi, key_color_fondo
+    call find_value
+    ret
 
+find_value:
+.next_char:
+    mov al, [rsi]
+    cmp al, 0
+    je .not_found
+    mov rbx, rsi
+    mov rcx, rdi
+.compare:
+    mov al, [rbx]
+    mov dl, [rcx]
+    cmp dl, 0
+    je .found
+    cmp al, dl
+    jne .next
+    inc rbx
+    inc rcx
+    jmp .compare
+.next:
+    inc rsi
+    jmp .next_char
+.found:
+    add rsi, 14
+    ret
+.not_found:
+    ret
+
+copy_value:
+    mov rcx, 0
+.copy_loop:
+    mov al, [rsi + rcx]
+    cmp al, 0xA
+    je .done
+    mov [rdi + rcx], al
+    inc rcx
+    cmp rcx, 4
+    je .done
+    jmp .copy_loop
+.done:
+    ret
+
+parse_inventario:
+    mov rcx, 0
+.next_line:
+    mov rdx, 0
+.read_name:
+    mov al, [rsi]
+    cmp al, ':'
+    jne error_format
+    cmp al, ':'
+    je .read_quantity
+    cmp al, 0
+    je .done
+    cmp al, 0xA
+    je .next_line
+    mov [rdi + rcx*32 + rdx], al
+    inc rdx
+    inc rsi
+    jmp .read_name
 
 .read_quantity:
     inc rsi
