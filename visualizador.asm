@@ -204,7 +204,10 @@ parse_inventario:
     je .done
     cmp al, 0xA
     je .next_line
-    mov [rdi + rcx*32 + rdx], al
+mov r10, rcx
+imul r10, 32
+add r10, rdx
+mov [rdi + r10], al
     inc rdx
     inc rsi
     jmp .read_name
@@ -222,7 +225,10 @@ parse_inventario:
     je .store_next
     cmp al, 0
     je .done
-    mov [rbx + rcx*8 + rdx], al
+mov r11, rcx
+imul r11, 8
+add r11, rdx
+mov [rbx + r11], al
     inc rdx
     inc rsi
     jmp .read_digits
