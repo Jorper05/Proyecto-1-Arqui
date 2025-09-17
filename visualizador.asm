@@ -107,11 +107,8 @@ _start:
     ; Ordenar inventario
     call sort_inventory
 
-    ; Salir
-    mov rax, 60
-    xor rdi, rdi
-    syscall
-
+    ; Dibujar gráfico
+    call draw_graph
 
     ; Salir
     mov rax, 60
@@ -127,9 +124,69 @@ error:
     mov rax, 60
     mov rdi, 1
 
+error_format:
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, msg_format
+    mov rdx, msg_format_len
+    syscall
+    mov rax, 60
+    mov rdi, 1
+    syscall
+    syscall
 
 
-   .compare_chars:
+
+
+
+.read_quantity:
+    inc rsi
+    mov rdx, 0
+    cmp al, '0'
+    jl error_format
+    cmp al, '9'
+    jg error_format
+.read_digits:
+    mov al, [rsi]
+    cmp al, 0xA
+    je .store_next
+    cmp al, 0
+    je .done
+    mov [rbx + rcx*8 + rdx], al
+    inc rdx
+    inc rsi
+    jmp .read_digits
+
+.store_next:
+    inc rsi
+    inc rcx
+    cmp rcx, 4
+    je .done
+    jmp .next_line
+.done:
+    ret
+
+sort_inventory:
+    mov rcx, 4
+.outer_loop:
+    mov rsi, 0
+.inner_loop:
+    mov rdi, nombres
+    mov rbx, cantidades
+
+    mov r8, rsi
+    imul r8, 32
+    add rdi, r8
+
+    mov r9, rsi
+    inc r9
+    imul r9, 32
+    mov rdx, nombres
+    add rdx, r9
+
+    mov r8, 0
+
+.compare_chars:
     mov al, [rdi + r8]
     mov bl, [rdx + r8]
     cmp al, bl
