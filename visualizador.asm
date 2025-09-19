@@ -86,21 +86,121 @@ _start:
     mov rdi, 0              ; código de salida 0
     syscall
 
-    ; Procesar config.ini
-    mov rsi, buffer_cfg
-    call find_key_char_barra
-    mov rdi, char_bar
-    call copy_value
+; LEER CONFIGURACIÓN
+; =============================================================================
+leer_configuracion:
+    ; Abrir archivo config.ini
+    mov rax, 2              ; sys_open
+    mov rdi, config_file
+    mov rsi, 0              ; O_RDONLY
+    mov rdx, 0
+    syscall
+    
+    cmp rax, 0
+    jl .error_open
+    mov [fd_config], rax
+    
+    ; Leer contenido del archivo
+    mov rax, 0              ; sys_read
+    mov rdi, [fd_config]
+    mov rsi, buffer
+    mov rdx, buffer_len
+    syscall
+    
+    cmp rax, 0
+    jl .error_read
+    
+    ; Procesar configuración
+    mov rsi, buffer         ; Puntero al buffer
+    mov rcx, rax            ; Longitud leída
+    
+.procesar_linea:
+    ; Buscar 'caracter_barra:'
+    mov rdi, .caracter_barra_str
+    mov rdx, .caracter_barra_len
+    call buscar_substring
+    test rax, rax
+    jz .procesar_color_barra
+    
+    ; Extraer carácter de barra
+    add rsi, .caracter_barra_len
+    mov rdi, bar_char
+    call extraer_valor
+    mov [bar_char_len], al
+    jmp .siguiente_linea
 
-    mov rsi, buffer_cfg
-    call find_key_color_barra
-    mov rdi, color_bar
-    call copy_value
+.procesar_color_barra:
+    ; Buscar 'color_barra:'
+    mov rdi, .color_barra_str
+    mov rdx, .color_barra_len
+    call buscar_substring
+    test rax, rax
+    jz .procesar_color_fondo
+    
+    ; Extraer color de barra
+    add rsi, .color_barra_len
+    mov rdi, bar_color
+    call extraer_valor_num
+    jmp .siguiente_linea
 
-    mov rsi, buffer_cfg
-    call find_key_color_fondo
-    mov rdi, color_bg
-    call copy_value
+.procesar_color_fondo:
+    ; Buscar 'color_fondo:'
+    mov rdi, .color_fondo_str
+    mov rdx, .color_fondo_len
+    call buscar_substring
+    test rax, rax
+    jz .siguiente_linea
+    
+    ; Extraer color de fondo
+    add rsi, .color_fondo_len
+    mov rdi, bg_color
+    call extraer_valor_num
+
+.siguiente_linea:
+    ; Avanzar a siguiente línea
+    mov al, [rsi]
+    test al, al
+    jz .cerrar_archivo
+    cmp al, 0xa
+    jne .avanzar
+    inc rsi
+    jmp .procesar_linea
+
+.avanzar:
+    inc rsi
+    jmp .siguiente_linea
+
+.cerrar_archivo:
+    ; Cerrar archivo de configuración
+    mov rax, 3              ; sys_close
+    mov rdi, [fd_config]
+    syscall
+    ret
+
+.error_open:
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, error_open
+    mov rdx, error_open_len
+    syscall
+    jmp _exit_error
+
+.error_read:
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, error_read
+    mov rdx, error_read_len
+    syscall
+    jmp _exit_error
+
+.caracter_barra_str db "caracter_barra:"
+.caracter_barra_len equ $ - .caracter_barra_str
+
+.color_barra_str db "color_barra:"
+.color_barra_len equ $ - .color_barra_str
+
+.color_fondo_str db "color_fondo:"
+.color_fondo_len equ $ - .color_fondo_str
 
     ; Leer inventario.txt
     mov rax, 2
