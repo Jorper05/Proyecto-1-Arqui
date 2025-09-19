@@ -10,7 +10,7 @@ section .data
     key_color_barra db "color_barra:", 0
     key_color_fondo db "color_fondo:", 0
 
-    sep db ": ", 0
+    sep db ":", 0
     sep_len equ $ - sep
 
     ansi_prefix db 0x1b, "["
@@ -26,8 +26,8 @@ section .data
 
     err_msg db "Error al abrir archivo", 0xA
     err_len equ $ - err_msg
-msg_format db "Error: formato inválido en inventario.txt", 0xA
-msg_format_len equ $ - msg_format
+; msg_format db "Error: formato inválido en inventario.txt", 0xA
+;msg_format_len equ $ - msg_format
 
 section .bss
     buffer_cfg resb 256
@@ -123,16 +123,16 @@ error:
     syscall
     mov rax, 60
     mov rdi, 1
-error_format:
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, msg_format
-    mov rdx, msg_format_len
-    syscall
-    mov rax, 60
-    mov rdi, 1
-    syscall
-    syscall
+;error_format:
+;    mov rax, 1
+;    mov rdi, 1
+;    mov rsi, msg_format
+;    mov rdx, msg_format_len
+;    syscall
+;    mov rax, 60
+;    mov rdi, 1
+;    syscall
+;    syscall
 
 ; Funciones para buscar claves
 find_key_char_barra:
