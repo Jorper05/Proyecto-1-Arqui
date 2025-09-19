@@ -357,7 +357,7 @@ ordenar_inventario:
     ret
 
 
-    ; DIBUJAR GRÁFICO
+; DIBUJAR GRÁFICO
 
 dibujar_grafico:
     mov rsi, items
@@ -495,73 +495,56 @@ dibujar_grafico:
 .fin_dibujo:
     ret
 
-    ; Salir
-    mov rax, 60
-    xor rdi, rdi
-    syscall
+; FUNCIONES AUXILIARES
 
-error:
+; Buscar substring en buffer
+buscar_substring:
+    push rsi
+    push rdi
+    push rcx
+    push rdx
+    
+    mov r8, rdi             ; substring a buscar
+    mov r9, rdx             ; longitud del substring
+    
+.buscar_loop:
+    mov rdi, r8
+    mov rdx, r9
+    mov r10, rsi
+    
+.comparar:
+    mov al, [rdi]
+    mov bl, [r10]
+    cmp al, bl
+    jne .no_coincide
+    
+    inc rdi
+    inc r10
+    dec rdx
+    jnz .comparar
+    
+    ; Coincidencia encontrada
+    pop rdx
+    pop rcx
+    pop rdi
+    pop rsi
     mov rax, 1
-    mov rdi, 1
-    mov rsi, err_msg
-    mov rdx, err_len
-    syscall
-    mov rax, 60
-    mov rdi, 1
-;error_format:
-;    mov rax, 1
-;    mov rdi, 1
-;    mov rsi, msg_format
-;    mov rdx, msg_format_len
-;    syscall
-;    mov rax, 60
-;    mov rdi, 1
-;    syscall
-;    syscall
-
-; Funciones para buscar claves
-find_key_char_barra:
-    mov rdi, key_char_barra
-    call find_value
     ret
 
-find_key_color_barra:
-    mov rdi, key_color_barra
-    call find_value
-    ret
-
-find_key_color_fondo:
-    mov rdi, key_color_fondo
-    call find_value
-    ret
-
-find_value:
-.next_char:
-    mov al, [rsi]
-    cmp al, 0
-    je .not_found
-    mov rbx, rsi
-    mov rcx, rdi
-.compare:
-    mov al, [rbx]
-    mov dl, [rcx]
-    cmp dl, 0
-    je .found
-    cmp al, dl
-    jne .next
-    inc rbx
-    inc rcx
-    jmp .compare
-.next:
+.no_coincide:
     inc rsi
-    jmp .next_char
-.found:
-    add rsi, 14
-    ret
-.not_found:
+    dec rcx
+    jnz .buscar_loop
+    
+    ; No encontrado
+    pop rdx
+    pop rcx
+    pop rdi
+    pop rsi
+    xor rax, rax
     ret
 
-copy_value:
+;;copy_value:
     mov rcx, 0
 .copy_loop:
     mov al, [rsi + rcx]
