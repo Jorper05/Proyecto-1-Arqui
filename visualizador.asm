@@ -357,8 +357,143 @@ ordenar_inventario:
     ret
 
 
-    ; Dibujar gráfico
-    call draw_graph
+    ; DIBUJAR GRÁFICO
+
+dibujar_grafico:
+    mov rsi, items
+    mov ecx, [item_count]
+    
+.dibujar_item:
+    test ecx, ecx
+    jz .fin_dibujo
+    
+    ; Imprimir nombre del item
+    push rsi
+    push rcx
+    
+    mov rax, 1              ; sys_write
+    mov rdi, 1
+    lea rsi, [rsi + inventario_item.name]
+    call strlen
+    mov rdx, rax
+    syscall
+    
+    ; Imprimir ": "
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, colon
+    mov rdx, colon_len
+    syscall
+    
+    ; Aplicar colores ANSI
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, ansi_esc
+    mov rdx, ansi_esc_len
+    syscall
+    
+    ; Color de fondo
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, bg_color
+    call strlen
+    mov rdx, rax
+    syscall
+    
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, ansi_m
+    mov rdx, 1
+    syscall
+    
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, ansi_esc
+    mov rdx, ansi_esc_len
+    syscall
+    
+    ; Color de barra
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, bar_color
+    call strlen
+    mov rdx, rax
+    syscall
+    
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, ansi_m
+    mov rdx, 1
+    syscall
+    
+    ; Dibujar barras según cantidad
+    pop rcx
+    pop rsi
+    push rsi
+    push rcx
+    
+    mov eax, [rsi + inventario_item.quantity]
+    mov rdi, bar_char
+    movzx rdx, byte [bar_char_len]
+    
+.dibujar_barras:
+    test eax, eax
+    jz .fin_barras
+    
+    push rax
+    mov rax, 1
+    mov rsi, rdi
+    syscall
+    pop rax
+    dec eax
+    jmp .dibujar_barras
+
+.fin_barras:
+    ; Resetear colores
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, ansi_reset
+    mov rdx, ansi_reset_len
+    syscall
+    
+    ; Imprimir espacio y cantidad numérica
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, space
+    mov rdx, 1
+    syscall
+    
+    ; Convertir cantidad a string
+    pop rcx
+    pop rsi
+    push rsi
+    push rcx
+    
+    mov eax, [rsi + inventario_item.quantity]
+    mov rdi, temp_num
+    call int_to_string
+    
+    mov rdx, rax            ; longitud del número
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, temp_num
+    syscall
+    
+    ; Nueva línea
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, newline
+    mov rdx, 1
+    syscall
+    
+    pop rcx
+    pop rsi
+    add rsi, inventario_item_size
+    dec ecx
+    jmp .dibujar_item
+
+.fin_dibujo:
+    ret
 
     ; Salir
     mov rax, 60
