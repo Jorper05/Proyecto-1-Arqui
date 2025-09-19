@@ -660,55 +660,30 @@ strlen:
     pop rsi
     ret
 
+; Convertir entero a string
+int_to_string:
+    push rbx
+    push rdx
+    push rdi
+    
+    mov rbx, 10
+    xor rcx, rcx
+    test rax, rax
+    jnz .convertir_digitos
+    
+    ; Caso especial: número 0
+    mov byte [rdi], '0'
+    mov rax, 1
+    jmp .fin_conversion
 
-
-
-;.do_swap:
-    mov r8, 0
-.swap_loop:
-mov r10, rdi
-add r10, r8
-mov al, [r10]
-mov r11, rdx
-add r11, r8
-mov bl, [r11]
-mov [r10], bl
-mov [r11], al
-    inc r8
-    cmp r8, 32
-    jne .swap_loop
-
-    mov rdi, cantidades
-    mov rdx, cantidades
-    mov r8, rsi
-    imul r8, 8
-    add rdi, r8
-    mov r9, rsi
-    inc r9
-    imul r9, 8
-    add rdx, r9
-
-    mov r8, 0
-.swap_qty:
-mov r10, rdi
-add r10, r8
-mov al, [r10]
-mov r11, rdx
-add r11, r8
-mov bl, [r11]
-mov [r10], bl
-mov [r11], al
-    inc r8
-    cmp r8, 8
-    jne .swap_qty
-
-.no_swap:
-    inc rsi
-    cmp rsi, 3
-    jl .inner_loop
-dec rcx
-jnz .outer_loop
-    ret
+.convertir_digitos:
+    xor rdx, rdx
+    div rbx
+    add dl, '0'
+    push rdx
+    inc rcx
+    test rax, rax
+    jnz .convertir_digitos
 
 draw_graph:
     mov rcx, 0
