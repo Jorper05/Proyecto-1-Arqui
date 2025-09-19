@@ -3,31 +3,61 @@
 ; Enlazar: ld -o visualizador visualizador.o
 
 section .data
-    filename_cfg db "config.ini", 0
-    filename_inv db "inventario.txt", 0
-
-    key_char_barra db "caracter_barra:", 0
-    key_color_barra db "color_barra:", 0
-    key_color_fondo db "color_fondo:", 0
-
-    sep db ":", 0
-    sep_len equ $ - sep
-
-    ansi_prefix db 0x1b, "["
-    ansi_prefix_len equ $ - ansi_prefix
-    sep_color db ";"
-    ansi_suffix db "m"
-    ansi_suffix_len equ $ - ansi_suffix
-
-    reset_color db 0x1b, "[0m"
-    reset_color_len equ $ - reset_color
-
-    newline db 0xA
-
-    err_msg db "Error al abrir archivo", 0xA
-    err_len equ $ - err_msg
-; msg_format db "Error: formato inválido en inventario.txt", 0xA
-;msg_format_len equ $ - msg_format
+    ; --- Nombres de archivos ---
+    inventario_file db "inventario.txt", 0
+    config_file     db "config.ini", 0
+    
+    ; --- Mensajes de error ---
+    error_open      db "Error: No se pudo abrir el archivo", 0xa, 0
+    error_open_len  equ $ - error_open
+    
+    error_read      db "Error: No se pudo leer el archivo", 0xa, 0
+    error_read_len  equ $ - error_read
+    
+    error_config    db "Error: Formato de config.ini inválido", 0xa, 0
+    error_config_len equ $ - error_config
+    
+    ; --- Códigos ANSI por defecto ---
+    default_char    db 0xe2, 0x96, 0xa0  ; Carácter Unicode ■ (bloque sólido)
+    default_char_len equ 3
+    
+    default_bar_color  db "92"           ; Verde brillante por defecto
+    default_bg_color   db "40"           ; Fondo negro por defecto
+    
+    ; --- Variables para configuración ---
+    bar_char        times 4 db 0         ; Carácter para las barras
+    bar_char_len    db 0                 ; Longitud del carácter
+    bar_color       times 3 db 0         ; Código color barras
+    bg_color        times 3 db 0         ; Código color fondo
+    
+    ; --- Buffer para lectura de archivos ---
+    buffer          times 1024 db 0
+    buffer_len      equ $ - buffer
+    
+    ; --- Estructura para items del inventario ---
+    ; Cada item: nombre (32 bytes) : cantidad (4 bytes)
+    struc inventario_item
+        .name:      resb 32
+        .quantity:  resd 1
+    endstruc
+    
+    ; --- Array para almacenar items ---
+    items           times 10 * inventario_item_size db 0
+    item_count      dd 0
+    
+    ; --- Códigos ANSI ---
+    ansi_esc        db 0x1b, "["         ; Secuencia de escape ANSI
+    ansi_esc_len    equ $ - ansi_esc
+    
+    ansi_m          db "m"               ; Final de secuencia ANSI
+    ansi_reset      db 0x1b, "[0m"       ; Resetear colores
+    ansi_reset_len  equ $ - ansi_reset
+    
+    colon           db ": "              ; Separador
+    colon_len       equ $ - colon
+    
+    space           db " "               ; Espacio
+    newline         db 0xa               ; Nueva línea
 
 section .bss
     buffer_cfg resb 256
