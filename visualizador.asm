@@ -60,37 +60,30 @@ section .data
     newline         db 0xa               ; Nueva línea
 
 section .bss
-    buffer_cfg resb 256
-    buffer_inv resb 512
-
-    char_bar resb 4
-    color_bar resb 4
-    color_bg resb 4
-
-    nombres resb 128        ; 4 frutas x 32 bytes
-    cantidades resb 32      ; 4 cantidades x 8 bytes
+    fd_inventario   resd 1               ; File descriptor inventario
+    fd_config       resd 1               ; File descriptor configuración
+    temp_num        resb 12              ; Buffer para conversión numérica
 
 section .text
     global _start
 
+; PROGRAMA PRINCIPAL
 _start:
-    ; Leer config.ini
-    mov rax, 2
-    mov rdi, filename_cfg
-    mov rsi, 0
-    syscall
-    cmp rax, 0
-    jl error
-    mov r12, rax
-
-    mov rax, 0
-    mov rdi, r12
-    mov rsi, buffer_cfg
-    mov rdx, 256
-    syscall
-
-    mov rax, 3
-    mov rdi, r12
+    ; Paso 1: Leer y procesar config.ini
+    call leer_configuracion
+    
+    ; Paso 2: Leer y procesar inventario.txt
+    call leer_inventario
+    
+    ; Paso 3: Ordenar los datos alfabéticamente
+    call ordenar_inventario
+    
+    ; Paso 4: Dibujar el gráfico de barras
+    call dibujar_grafico
+    
+    ; Salir del programa
+    mov rax, 60             ; sys_exit
+    mov rdi, 0              ; código de salida 0
     syscall
 
     ; Procesar config.ini
