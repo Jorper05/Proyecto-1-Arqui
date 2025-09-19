@@ -595,52 +595,75 @@ extraer_valor_num:
     mov byte [rdi], 0
     ret
 
-.store_next:
-    inc rsi
-    inc rcx
-    cmp rcx, 4
-    je .done
-    jmp .next_line
-.done:
+; Comparar dos strings
+comparar_strings:
+    push rsi
+    push rdi
+    
+.comparar_loop:
+    mov al, [rax]
+    mov bl, [rbx]
+    test al, al
+    jz .fin_comparacion
+    test bl, bl
+    jz .fin_comparacion
+    cmp al, bl
+    jne .fin_comparacion
+    inc rax
+    inc rbx
+    jmp .comparar_loop
+
+.fin_comparacion:
+    sub al, bl
+    pop rdi
+    pop rsi
     ret
 
-sort_inventory:
-    mov rcx, 4
-.outer_loop:
-    mov rsi, 0
-.inner_loop:
-    mov rdi, nombres
-    mov rbx, cantidades
-
+; Intercambiar dos items del inventario
+intercambiar_items:
+    push rsi
+    push rdi
+    push rcx
+    
+    mov rcx, inventario_item_size
     mov r8, rsi
-    imul r8, 32
-    add rdi, r8
-
-    mov r9, rsi
-    inc r9
-    imul r9, 32
-    mov rdx, nombres
-    add rdx, r9
-
-    mov r8, 0
-.compare_chars:
-mov r10, rdi
-add r10, r8
-mov al, [r10]
-mov r11, rdx
-add r11, r8
-mov bl, [r11]
-    cmp al, bl
-    je .next_char
-    jb .no_swap
-    jmp .do_swap
-.next_char:
+    mov r9, rdi
+    
+.intercambiar_loop:
+    mov al, [r8]
+    mov bl, [r9]
+    mov [r8], bl
+    mov [r9], al
     inc r8
-    cmp r8, 32
-    jne .compare_chars
-    jmp .no_swap
+    inc r9
+    dec rcx
+    jnz .intercambiar_loop
+    
+    pop rcx
+    pop rdi
+    pop rsi
+    ret
 
-.do_swap:
+; Calcular longitud de string
+strlen:
+    push rsi
+    xor rcx, rcx
+    
+.calcular_longitud:
+    cmp byte [rsi + rcx], 0
+    je .fin_calculo
+    inc rcx
+    jmp .calcular_longitud
+
+.fin_calculo:
+    mov rax, rcx
+    pop rsi
+    ret
+
+
+
+
+;.do_swap:
     mov r8, 0
 .swap_loop:
 mov r10, rdi
