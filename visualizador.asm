@@ -685,84 +685,24 @@ int_to_string:
     test rax, rax
     jnz .convertir_digitos
 
-draw_graph:
-    mov rcx, 0
-.next_item:
-    cmp rcx, 4
-    je .done
+.pop_digitos:
+    pop rax
+    mov [rdi], al
+    inc rdi
+    dec rcx
+    jnz .pop_digitos
 
-    mov rsi, nombres
-    mov rdi, 1
-    mov rax, 1
-    mov rbx, rcx
-    imul rbx, 32
-    add rsi, rbx
-    mov rdx, 32
-    syscall
-
-    mov rsi, sep
-    mov rdx, sep_len
-    syscall
-
-    mov rsi, ansi_prefix
-    mov rdx, ansi_prefix_len
-    syscall
-
-    mov rsi, color_bg
-    mov rdx, 2
-    syscall
-
-    mov rsi, sep_color
-    mov rdx, 1
-    syscall
-
-    mov rsi, color_bar
-    mov rdx, 2
-    syscall
-
-    mov rsi, ansi_suffix
-    mov rdx, ansi_suffix_len
-    syscall
-
-    mov rbx, cantidades
-    mov r8, rcx
-    imul r8, 8
-    add rbx, r8
-    call draw_bar
-
-    mov rsi, reset_color
-    mov rdx, reset_color_len
-    syscall
-
-    mov rsi, cantidades
-    mov rbx, rcx
-    imul rbx, 8
-    add rsi, rbx
-    mov rdx, 8
-    syscall
-
-    mov rsi, newline
-    mov rdx, 1
-    syscall
-
-    inc rcx
-    jmp .next_item
-.done:
+.fin_conversion:
+    mov byte [rdi], 0
+    mov rax, rdi
+    pop rdi
+    sub rax, rdi
+    pop rdx
+    pop rbx
     ret
 
-draw_bar:
-    mov al, [rbx]
-    sub al, '0'
-    mov cl, al
-.loop_bar:
-    cmp cl, 0
-    je .done_bar
-    mov rsi, char_bar
-    mov rdx, 1
+; Salida con error
+_exit_error:
+    mov rax, 60
     mov rdi, 1
-    mov rax, 1
     syscall
-    dec cl
-    jmp .loop_bar
-.done_bar:
-    ret
