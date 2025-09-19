@@ -544,64 +544,56 @@ buscar_substring:
     xor rax, rax
     ret
 
-;;copy_value:
-    mov rcx, 0
-.copy_loop:
-    mov al, [rsi + rcx]
-    cmp al, 0xA
-    je .done
-    mov [rdi + rcx], al
-    inc rcx
-    cmp rcx, 4
-    je .done
-    jmp .copy_loop
-.done:
+; Extraer valor de configuración (texto)
+extraer_valor:
+    xor rax, rax
+    
+.extraer_loop:
+    mov al, [rsi]
+    cmp al, 0xa
+    je .fin_extraccion
+    cmp al, 0
+    je .fin_extraccion
+    cmp al, ' '
+    je .saltar_espacio
+    
+    mov [rdi], al
+    inc rdi
+    inc rax
+
+.saltar_espacio:
+    inc rsi
+    jmp .extraer_loop
+
+.fin_extraccion:
+    mov byte [rdi], 0
     ret
 
-parse_inventario:
-    mov rcx, 0
-.next_line:
-    mov rdx, 0
-.read_name:
-     mov al, [rsi]
-    cmp al, ':'
-    jne error_format
-    cmp al, ':'
-    je .read_quantity
-    cmp al, 0
-    je .done
-    cmp al, 0xA
-    je .next_line
-mov r10, rdi
-imul r11, rcx, 32
-add r10, r11
-add r10, rdx
-mov [r10], al
-    inc rdx
-    inc rsi
-    jmp .read_name
-
-.read_quantity:
-    inc rsi
-    mov rdx, 0
-    cmp al, '0'
-    jl error_format
-    cmp al, '9'
-    jg error_format
-.read_digits:
+; Extraer valor numérico de configuración
+extraer_valor_num:
+    xor rax, rax
+    
+.extraer_loop:
     mov al, [rsi]
-    cmp al, 0xA
-    je .store_next
+    cmp al, 0xa
+    je .fin_extraccion
     cmp al, 0
-    je .done
-mov r10, rbx
-imul r11, rcx, 8
-add r10, r11
-add r10, rdx
-mov [r10], al
-    inc rdx
+    je .fin_extraccion
+    cmp al, '0'
+    jb .saltar
+    cmp al, '9'
+    ja .saltar
+    
+    mov [rdi], al
+    inc rdi
+
+.saltar:
     inc rsi
-    jmp .read_digits
+    jmp .extraer_loop
+
+.fin_extraccion:
+    mov byte [rdi], 0
+    ret
 
 .store_next:
     inc rsi
