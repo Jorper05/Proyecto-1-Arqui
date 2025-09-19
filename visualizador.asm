@@ -87,7 +87,7 @@ _start:
     syscall
 
 ; LEER CONFIGURACIÓN
-; =============================================================================
+
 leer_configuracion:
     ; Abrir archivo config.ini
     mov rax, 2              ; sys_open
@@ -202,33 +202,160 @@ leer_configuracion:
 .color_fondo_str db "color_fondo:"
 .color_fondo_len equ $ - .color_fondo_str
 
-    ; Leer inventario.txt
-    mov rax, 2
-    mov rdi, filename_inv
-    mov rsi, 0
+; LEER INVENTARIO
+leer_inventario:
+    ; Abrir archivo inventario.txt
+    mov rax, 2              ; sys_open
+    mov rdi, inventario_file
+    mov rsi, 0              ; O_RDONLY
+    mov rdx, 0
     syscall
+    
     cmp rax, 0
-    jl error
-    mov r12, rax
-
-    mov rax, 0
-    mov rdi, r12
-    mov rsi, buffer_inv
-    mov rdx, 512
+    jl .error_open
+    mov [fd_inventario], rax
+    
+    ; Leer contenido del archivo
+    mov rax, 0              ; sys_read
+    mov rdi, [fd_inventario]
+    mov rsi, buffer
+    mov rdx, buffer_len
     syscall
+    
+    cmp rax, 0
+    jl .error_read
+    
+    ; Procesar líneas del inventario
+    mov rsi, buffer
+    mov rdi, items
+    mov rcx, rax
 
-    mov rax, 3
-    mov rdi, r12
+.procesar_linea:
+    ; Saltar espacios y newlines
+    cmp byte [rsi], 0xa
+    je .avanzar
+    cmp byte [rsi], ' '
+    je .avanzar
+    cmp byte [rsi], 0
+    je .fin_procesamiento
+    
+    ; Copiar nombre del item
+    mov rdx, rdi
+    add rdx, inventario_item.name
+    
+.copiar_nombre:
+    mov al, [rsi]
+    cmp al, ':'
+    je .encontrar_cantidad
+    cmp al, 0xa
+    je .encontrar_cantidad
+    cmp al, 0
+    je .encontrar_cantidad
+    
+    mov [rdx], al
+    inc rsi
+    inc rdx
+    jmp .copiar_nombre
+
+.encontrar_cantidad:
+    ; Buscar ':' y extraer cantidad
+    cmp byte [rsi], ':'
+    jne .avanzar
+    inc rsi
+    
+    ; Convertir número
+    xor rax, rax
+    xor rbx, rbx
+    
+.convertir_numero:
+    mov bl, [rsi]
+    cmp bl, 0xa
+    je .guardar_cantidad
+    cmp bl, 0
+    je .guardar_cantidad
+    cmp bl, '0'
+    jb .avanzar
+    cmp bl, '9'
+    ja .avanzar
+    
+    sub bl, '0'
+    imul rax, 10
+    add rax, rbx
+    inc rsi
+    jmp .convertir_numero
+
+.guardar_cantidad:
+    mov [rdi + inventario_item.quantity], eax
+    inc dword [item_count]
+    add rdi, inventario_item_size
+
+.avanzar:
+    inc rsi
+    dec rcx
+    jnz .procesar_linea
+
+.fin_procesamiento:
+    ; Cerrar archivo de inventario
+    mov rax, 3              ; sys_close
+    mov rdi, [fd_inventario]
     syscall
+    ret
 
-    ; Procesar inventario
-    mov rsi, buffer_inv
-    mov rdi, nombres
-    mov rbx, cantidades
-    call parse_inventario
+.error_open:
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, error_open
+    mov rdx, error_open_len
+    syscall
+    jmp _exit_error
 
-    ; Ordenar inventario
-    call sort_inventory
+.error_read:
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, error_read
+    mov rdx, error_read_len
+    syscall
+    jmp _exit_error
+
+    ; ORDENAR INVENTARIO (Bubble Sort)
+; =============================================================================
+ordenar_inventario:
+    mov ecx, [item_count]
+    dec ecx
+    jle .fin_ordenamiento
+    
+.outer_loop:
+    mov rsi, items
+    mov rdi, items
+    add rdi, inventario_item_size
+    mov edx, [item_count]
+    dec edx
+    
+.inner_loop:
+    ; Comparar nombres
+    mov rax, rsi
+    add rax, inventario_item.name
+    mov rbx, rdi
+    add rbx, inventario_item.name
+    
+    call comparar_strings
+    jbe .no_intercambiar
+    
+    ; Intercambiar items
+    call intercambiar_items
+
+.no_intercambiar:
+    add rsi, inventario_item_size
+    add rdi, inventario_item_size
+    dec edx
+    jnz .inner_loop
+    
+    dec ecx
+    jnz .outer_loop
+
+.fin_ordenamiento:
+    ret
+
 
     ; Dibujar gráfico
     call draw_graph
