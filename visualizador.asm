@@ -69,6 +69,17 @@ section .text
 
 ; PROGRAMA PRINCIPAL
 _start:
+    
+    mov rax, 1
+mov rdi, 1
+mov rsi, debug_msg
+mov rdx, debug_msg_len
+syscall
+
+section .data
+    debug_msg db "Iniciando programa...", 0xa, 0
+    debug_msg_len equ $ - debug_msg
+
     ; Paso 1: Leer y procesar config.ini
     call leer_configuracion
     
