@@ -581,6 +581,7 @@ dibujar_grafico:
     mov rdx, 1
     syscall
     
+.siguiente_item:
     pop rcx
     pop rsi
     add rsi, inventario_item_size
@@ -606,24 +607,13 @@ buscar_substring:
     mov r8, rdi             ; substring a buscar
     mov r9, rdx             ; longitud del substring
 
-    pop rbp
-    ret
-    
 .buscar_loop:
-    push rbp
-    mov rbp, rsp
-
     mov rdi, r8
     mov rdx, r9
     mov r10, rsi
 
-    pop rbp
-    ret
-    
 .comparar:
-    push rbp
-    mov rbp, rsp    
-
+    
     mov al, [rdi]
     mov bl, [r10]
     cmp al, bl
@@ -642,12 +632,8 @@ buscar_substring:
     mov rax, 1
     ret
 
-    pop rbp
-    ret
 .no_coincide:
-    push rbp
-    mov rbp, rsp
-
+    
     inc rsi
     dec rcx
     jnz .buscar_loop
@@ -660,23 +646,15 @@ buscar_substring:
     xor rax, rax
     ret
     
-    pop rbp
-    ret
-
 ; Extraer valor de configuración (texto)
 extraer_valor:
     push rbp
     mov rbp, rsp
     
     xor rax, rax
-
-    pop rbp
-    ret
     
 .extraer_loop:
-    push rbp
-    mov rbp, rsp
-    
+  
     mov al, [rsi]
     cmp al, 0xa
     je .fin_extraccion
@@ -689,41 +667,25 @@ extraer_valor:
     inc rdi
     inc rax
 
-    pop rbp
-    ret
-
 .saltar_espacio:
-    push rbp
-    mov rbp, rsp
-
+  
     inc rsi
     jmp .extraer_loop
 
-    pop rbp
-    ret
-
 .fin_extraccion:
-    push rbp
-    mov rbp, rsp
-
+    
     mov byte [rdi], 0
     ret
 
-    pop rbp
-    ret
 ; Extraer valor numérico de configuración
 extraer_valor_num:
     push rbp
     mov rbp, rsp
 
     xor rax, rax
-
-    pop rbp
-    ret
     
 .extraer_loop:
-    push rbp
-    mov rbp, rsp
+    
     mov al, [rsi]
     cmp al, 0xa
     je .fin_extraccion
@@ -736,20 +698,15 @@ extraer_valor_num:
     
     mov [rdi], al
     inc rdi
-    pop rbp
-    ret
 
 .saltar:
-    push rbp
-    mov rbp, rsp
+    
     inc rsi
     jmp .extraer_loop
-    pop rbp
-    ret
+    
 
 .fin_extraccion:
-    push rbp
-    mov rbp, rsp
+    
     mov byte [rdi], 0
     ret
     pop rbp
@@ -761,12 +718,9 @@ comparar_strings:
     mov rbp, rsp
     push rsi
     push rdi
-    pop rbp
-    ret
     
 .comparar_loop:
-    push rbp
-    mov rbp, rsp
+    
     mov al, [rax]
     mov bl, [rbx]
     test al, al
@@ -778,12 +732,9 @@ comparar_strings:
     inc rax
     inc rbx
     jmp .comparar_loop
-    pop rbp
-    ret
 
 .fin_comparacion:
-    push rbp
-    mov rbp, rsp
+    
     sub al, bl
     pop rdi
     pop rsi
@@ -802,12 +753,10 @@ intercambiar_items:
     mov rcx, inventario_item_size
     mov r8, rsi
     mov r9, rdi
-    pop rbp
-    ret
+
     
 .intercambiar_loop:
-    push rbp
-    mov rbp, rsp
+    
     mov al, [r8]
     mov bl, [r9]
     mov [r8], bl
@@ -830,21 +779,16 @@ strlen:
     mov rbp, rsp
     push rsi
     xor rcx, rcx
-    pop rbp
-    ret
+    
 .calcular_longitud:
-    push rbp
-    mov rbp, rsp
+    
     cmp byte [rsi + rcx], 0
     je .fin_calculo
     inc rcx
     jmp .calcular_longitud
-    pop rbp
-    ret
-
+    
 .fin_calculo:
-    push rbp
-    mov rbp, rsp
+    
     mov rax, rcx
     pop rsi
     ret
@@ -868,8 +812,7 @@ int_to_string:
     mov byte [rdi], '0'
     mov rax, 1
     jmp .fin_conversion
-    pop rbp
-    ret
+    
 .convertir_digitos:
     push rbp
     mov rbp, rsp
@@ -880,8 +823,6 @@ int_to_string:
     inc rcx
     test rax, rax
     jnz .convertir_digitos
-    pop rbp
-    ret
 
 .pop_digitos:
     push rbp
@@ -891,12 +832,9 @@ int_to_string:
     inc rdi
     dec rcx
     jnz .pop_digitos
-    pop rbp
-    ret
 
 .fin_conversion:
-    push rbp
-    mov rbp, rsp
+    
     mov byte [rdi], 0
     mov rax, rdi
     pop rdi
