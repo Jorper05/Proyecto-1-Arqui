@@ -78,7 +78,6 @@ section .text
 
 ; PROGRAMA PRINCIPAL - CON STACK ALINEADO
 _start:
-    
     ; Alinear stack a 16-bytes para evitar segmentation fault
     and rsp, -16
 
@@ -203,10 +202,9 @@ leer_configuracion:
 
 .siguiente_linea:
     ; Avanzar a siguiente línea
-    mov al, [rsi]
-    test al, al
-    jz .cerrar_archivo
-    cmp al, 0xa
+    cmp byte [rsi], 0
+    je .cerrar_archivo
+    cmp byte [rsi], 0xa
     jne .avanzar
     inc rsi
     jmp .procesar_linea
@@ -214,7 +212,7 @@ leer_configuracion:
 .avanzar:
     inc rsi
     dec rcx
-    jmp .siguiente_linea
+    jmp .avanzar
 
 .cerrar_archivo:
     ; Cerrar archivo de configuración
@@ -289,6 +287,7 @@ leer_inventario:
     mov rsi, buffer
     mov rdi, items
     mov rcx, rax
+    mov dword [item_count], 0
 
 .procesar_linea:
     ; Saltar espacios y newlines
@@ -364,6 +363,8 @@ leer_inventario:
     add rdi, inventario_item_size
 
 .avanzar:
+    cmp byte [rsi], 0
+    je .fin_procesamiento
     inc rsi
     dec rcx
     jnz .procesar_linea
@@ -405,17 +406,18 @@ leer_inventario:
 ordenar_inventario:
     push rbp
     mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
 
     mov ecx, [item_count]
     cmp ecx, 1
-    dec ecx
     jle .fin_ordenamiento
     dec ecx
     
 .outer_loop:
     mov rsi, items
-    mov rdi, items
-    add rdi, inventario_item_size
     mov edx, [item_count]
     dec edx
     
@@ -433,8 +435,7 @@ ordenar_inventario:
     call intercambiar_items
 
 .no_intercambiar:
-    add rsi, inventario_item_size
-    add rdi, inventario_item_size
+    add rsi, rdi
     dec edx
     jnz .inner_loop
     
@@ -442,15 +443,20 @@ ordenar_inventario:
     jnz .outer_loop
 
 .fin_ordenamiento:
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
     pop rbp
     ret
-
 
 ; DIBUJAR GRÁFICO
 
 dibujar_grafico:
     push rbp
     mov rbp, rsp
+    push r12
+    push r13
 
     mov rsi, items
     mov ecx, [item_count]
@@ -463,9 +469,7 @@ dibujar_grafico:
     je .siguiente_item
     
     ; Imprimir nombre del item
-    push rsi
-    push rcx
-    
+        
     mov rax, 1              ; sys_write
     mov rdi, 1
     lea rsi, [rsi + inventario_item.name]
@@ -522,11 +526,7 @@ dibujar_grafico:
     syscall
     
     ; Dibujar barras según cantidad
-    pop rcx
-    pop rsi
-    push rsi
-    push rcx
-    
+        
     mov eax, [rsi + inventario_item.quantity]
     test eax, eax
     jz .fin_barras
@@ -536,12 +536,16 @@ dibujar_grafico:
     
 .dibujar_barras:
     push rax
+    push rcx
     mov rax, 1
-    mov rsi, rdi
+    mov rdi, 1
+    mov rsi, bar_char
+    mov rdx, rcx
     syscall
+    pop rcx
     pop rax
     dec eax
-    jmp .dibujar_barras
+    jnz .dibujar_barras
 
 .fin_barras:
     ; Resetear colores
@@ -564,7 +568,7 @@ dibujar_grafico:
     push rsi
     push rcx
     
-    mov eax, [rsi + inventario_item.quantity]
+    mov eax, [r12 + inventario_item.quantity]
     mov rdi, temp_num
     call int_to_string
     
@@ -582,13 +586,13 @@ dibujar_grafico:
     syscall
     
 .siguiente_item:
-    pop rcx
-    pop rsi
-    add rsi, inventario_item_size
-    dec ecx
-    jmp .dibujar_item
+    add r12, inventario_item_size
+    dec r13d
+    jnz .dibujar_item
 
 .fin_dibujo:
+    pop r13
+    pop r12
     pop rbp    
     ret
 
@@ -597,53 +601,48 @@ dibujar_grafico:
 ; Buscar substring en buffer
 buscar_substring:
     push rbp
-    mov rbp, rsp    
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
 
-    push rsi
-    push rdi
-    push rcx
-    push rdx
-    
-    mov r8, rdi             ; substring a buscar
-    mov r9, rdx             ; longitud del substring
+    mov r12, rdi            ; substring a buscar
+    mov r13, rdx            ; longitud del substring
+    mov rbx, rsi            ; buffer
+    mov r14, rcx            ; buffer length
 
 .buscar_loop:
-    mov rdi, r8
-    mov rdx, r9
-    mov r10, rsi
+    mov rdi, r12
+    mov rsi, rbx
+    mov rcx, r13
 
 .comparar:
     
     mov al, [rdi]
-    mov bl, [r10]
-    cmp al, bl
+    mov bl, [rsi]
+    cmp al, dl
     jne .no_coincide
     
     inc rdi
-    inc r10
-    dec rdx
+    inc rsi
+    dec rcx
     jnz .comparar
     
     ; Coincidencia encontrada
-    pop rdx
-    pop rcx
-    pop rdi
-    pop rsi
     mov rax, 1
-    ret
+    jmp .fin_busqueda
 
 .no_coincide:
     
-    inc rsi
-    dec rcx
+    inc rbx
+    dec r14
     jnz .buscar_loop
     
     ; No encontrado
-    pop rdx
-    pop rcx
-    pop rdi
-    pop rsi
-    xor rax, rax
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
     ret
     
 ; Extraer valor de configuración (texto)
@@ -665,16 +664,17 @@ extraer_valor:
     
     mov [rdi], al
     inc rdi
-    inc rax
-
-.saltar_espacio:
-  
     inc rsi
     jmp .extraer_loop
 
-.fin_extraccion:
+.saltar_espacio:
+    inc rsi
+    jmp .extraer_loop
     
+
+.fin_extraccion:
     mov byte [rdi], 0
+    pop rbp
     ret
 
 ; Extraer valor numérico de configuración
@@ -706,7 +706,6 @@ extraer_valor_num:
     
 
 .fin_extraccion:
-    
     mov byte [rdi], 0
     ret
     pop rbp
@@ -716,8 +715,7 @@ extraer_valor_num:
 comparar_strings:
     push rbp
     mov rbp, rsp
-    push rsi
-    push rdi
+    push rbx
     
 .comparar_loop:
     
@@ -736,9 +734,7 @@ comparar_strings:
 .fin_comparacion:
     
     sub al, bl
-    pop rdi
-    pop rsi
-    ret
+    pop rbx
     pop rbp
     ret
 
@@ -746,30 +742,28 @@ comparar_strings:
 intercambiar_items:
     push rbp
     mov rbp, rsp
-    push rsi
-    push rdi
-    push rcx
+    push rbx
+    push r12
+    push r13
     
+    mov r12, rsi            ; item 1
+    mov r13, rdi            ; item 2
     mov rcx, inventario_item_size
-    mov r8, rsi
-    mov r9, rdi
 
-    
 .intercambiar_loop:
     
-    mov al, [r8]
-    mov bl, [r9]
-    mov [r8], bl
-    mov [r9], al
-    inc r8
-    inc r9
+     mov al, [r12]
+    mov bl, [r13]
+    mov [r12], bl
+    mov [r13], al
+    inc r12
+    inc r13
     dec rcx
     jnz .intercambiar_loop
     
-    pop rcx
-    pop rdi
-    pop rsi
-    ret
+    pop r13
+    pop r12
+    pop rbx
     pop rbp
     ret
 
@@ -788,12 +782,10 @@ strlen:
     jmp .calcular_longitud
     
 .fin_calculo:
-    
     mov rax, rcx
     pop rsi
     ret
-    pop rbp
-    ret
+    
 
 ; Convertir entero a string
 int_to_string:
@@ -810,12 +802,11 @@ int_to_string:
     
     ; Caso especial: número 0
     mov byte [rdi], '0'
+    mov byte [rdi + 1], 0
     mov rax, 1
     jmp .fin_conversion
     
 .convertir_digitos:
-    push rbp
-    mov rbp, rsp
     xor rdx, rdx
     div rbx
     add dl, '0'
@@ -824,11 +815,11 @@ int_to_string:
     test rax, rax
     jnz .convertir_digitos
 
+    mov rax, rcx 
+
 .pop_digitos:
-    push rbp
-    mov rbp, rsp
-    pop rax
-    mov [rdi], al
+    pop rdx
+    mov [rdi], dl
     inc rdi
     dec rcx
     jnz .pop_digitos
@@ -836,12 +827,9 @@ int_to_string:
 .fin_conversion:
     
     mov byte [rdi], 0
-    mov rax, rdi
-    pop rdi
-    sub rax, rdi
+    mov rdi
     pop rdx
     pop rbx
-    ret
     pop rbp
     ret
 
