@@ -608,8 +608,8 @@ buscar_substring:
 
     mov r12, rdi            ; substring a buscar
     mov r13, rdx            ; longitud del substring
-    mov rbx, rsi            ; buffer
-    mov r14, rcx            ; buffer length
+    mov r14, rsi            ; buffer 
+    mov rbx, rcx            ; buffer length
 
 .buscar_loop:
     mov rdi, r12
@@ -619,9 +619,8 @@ buscar_substring:
 .comparar:
     
     mov al, [rdi]
-    mov bl, [rsi]
     cmp al, dl
-    jne .no_coincide
+    
     
     inc rdi
     inc rsi
@@ -631,6 +630,15 @@ buscar_substring:
     ; Coincidencia encontrada
     mov rax, 1
     jmp .fin_busqueda
+
+.fin_busqueda:
+pop r14
+pop r13
+pop r12
+pop rbx
+pop rbp
+ret
+
 
 .no_coincide:
     
