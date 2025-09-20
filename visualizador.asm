@@ -85,8 +85,8 @@ _start:
     ; Mensaje de inicio para debug
     mov rax, 1
     mov rdi, 1
-    mov rsi, debug_msg
-    mov rdx, debug_msg_len
+    mov rsi, debug_start
+    mov rdx, debug_start_len
     syscall
 
     ; Paso 1: Leer y procesar config.ini
