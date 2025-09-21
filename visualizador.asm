@@ -39,9 +39,9 @@ section .data
     item_count      dd 0
     
     ; Códigos ANSI
-    ansi_esc        db 0x1B, "["
-    ansi_m          db "m", 0
-    ansi_reset      db 0x1B, "[0m", 0
+    ansi_esc        db 0x1B, "["      ; ESC[
+    ansi_m          db "m", 0         ; m
+    ansi_reset      db 0x1B, "[0m", 0 ; ESC[0m
     colon           db ":", 0
     space           db " ", 0
     newline         db 10, 0
@@ -395,22 +395,44 @@ dibujar_grafico:
     ; Separador
     mov rsi, colon
     call print_string
-    
-    ; Color fondo
-    mov rsi, ansi_esc
+    mov rsi, space
     call print_string
+    
+    ; Secuencia ANSI: ESC[<bg_color>mESC[<bar_color>m
+    mov rax, 1
+    mov rdi, 1
+    
+    ; ESC[
+    mov rsi, ansi_esc
+    mov rdx, 2
+    syscall
+    
+    ; Color de fondo
     mov rsi, bg_color
-    call print_string
-    mov rsi, ansi_m
-    call print_string
+    call strlen
+    mov rdx, rax
+    syscall
     
-    ; Color barra
-    mov rsi, ansi_esc
-    call print_string
-    mov rsi, bar_color
-    call print_string
+    ; m
     mov rsi, ansi_m
-    call print_string
+    mov rdx, 1
+    syscall
+    
+    ; ESC[
+    mov rsi, ansi_esc
+    mov rdx, 2
+    syscall
+    
+    ; Color de barra
+    mov rsi, bar_color
+    call strlen
+    mov rdx, rax
+    syscall
+    
+    ; m
+    mov rsi, ansi_m
+    mov rdx, 1
+    syscall
     
     ; Barras
     mov ecx, [r12 + item.quantity]
@@ -428,15 +450,18 @@ dibujar_grafico:
     loop .draw_bars
     
 .no_bars:
-    ; Reset color
+    ; Reset color: ESC[0m
+    mov rax, 1
+    mov rdi, 1
     mov rsi, ansi_reset
-    call print_string
+    mov rdx, 4
+    syscall
     
-    ; Espacio
+    ; Espacio y cantidad
     mov rsi, space
     call print_string
     
-    ; Cantidad
+    ; Convertir cantidad a string
     mov eax, [r12 + item.quantity]
     mov rdi, temp_num
     call int_to_string
@@ -678,14 +703,26 @@ print_string:
     push rbp
     mov rbp, rsp
     push rsi
+    push rdi
+    push rdx
     
     mov rdi, rsi
     call strlen
+    test rax, rax
+    jz .exit
+    
     mov rdx, rax
     mov rax, 1
     mov rdi, 1
+    pop rdx
+    pop rdi
     pop rsi
     syscall
+    
+.exit:
+    pop rdx
+    pop rdi
+    pop rsi
     pop rbp
     ret
 
