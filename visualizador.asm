@@ -32,10 +32,8 @@ section .data
         .quantity:  resd 1
     endstruc
     
-    item_size equ $ - item
-    
-    ; Array de items
-    items           times 10 * item_size db 0
+    ; Array de items - usar tamaño explícito en lugar de item_size
+    items           times 10 * (32 + 4) db 0
     item_count      dd 0
     
     ; Códigos ANSI
@@ -53,6 +51,9 @@ section .bss
 
 section .text
     global _start
+
+; Constante para el tamaño del item (32 bytes para nombre + 4 bytes para cantidad)
+%define ITEM_SIZE 36
 
 _start:
     ; Alinear stack
@@ -295,7 +296,7 @@ leer_inventario:
     mov [r14 + item.quantity], eax
     inc r13
     mov [item_count], r13d
-    add r14, item_size
+    add r14, ITEM_SIZE
     cmp r13, 10
     jge .close_file
     jmp .next_line
@@ -365,7 +366,7 @@ ordenar_inventario:
 .inner_loop:
     mov rsi, r13
     mov rdi, r13
-    add rdi, item_size
+    add rdi, ITEM_SIZE
     
     ; Comparar nombres
     lea rax, [rsi + item.name]
@@ -377,11 +378,11 @@ ordenar_inventario:
     call intercambiar_items
     
 .no_swap:
-    add r13, item_size
+    add r13, ITEM_SIZE
     dec r14d
     jnz .inner_loop
     
-    add r12, item_size
+    add r12, ITEM_SIZE
     loop .outer_loop
     
 .exit:
@@ -464,7 +465,7 @@ dibujar_grafico:
     call print_string
     
 .next_item:
-    add r12, item_size
+    add r12, ITEM_SIZE
     dec r13d
     jnz .draw_item
     
@@ -673,7 +674,7 @@ intercambiar_items:
     
     mov r12, rsi
     mov r13, rdi
-    mov r14, item_size
+    mov r14, ITEM_SIZE
     
 .swap_loop:
     mov al, [r12]
