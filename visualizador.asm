@@ -1,824 +1,326 @@
 ; visualizador.asm
-; Compilar: nasm -f elf64 -o visualizador.o visualizador.asm
-; Enlazar: ld -o visualizador visualizador.o
+; Programa en ensamblador x64 puro para Linux
+; Visualizador de datos con ordenamiento
+; Compilar: nasm -f elf64 visualizador.asm -o visualizador.o
+; Enlazar: ld visualizador.o -o visualizador
 
 section .data
-    ; --- Nombres de archivos ---
+    ; Archivos
     inventario_file db "inventario.txt", 0
     config_file     db "config.ini", 0
     
-    ; --- Mensajes de error ---
-    error_open      db "Error: No se pudo abrir el archivo", 0xa, 0
-    error_open_len  equ $ - error_open
+    ; Mensajes de error
+    error_open      db "Error: No se pudo abrir el archivo", 10, 0
+    error_read      db "Error: No se pudo leer el archivo", 10, 0
+    error_config    db "Error: Formato de config.ini inválido", 10, 0
     
-    error_read      db "Error: No se pudo leer el archivo", 0xa, 0
-    error_read_len  equ $ - error_read
+    ; Códigos ANSI por defecto
+    default_char    db 0xE2, 0x96, 0xA0  ; ■
+    default_bar_color db "92", 0
+    default_bg_color  db "40", 0
     
-    error_config    db "Error: Formato de config.ini inválido", 0xa, 0
-    error_config_len equ $ - error_config
-
-    debug_start     db "Iniciando programa...", 0xa, 0
-    debug_start_len equ $ - debug_start
+    ; Variables de configuración
+    bar_char        times 4 db 0
+    bar_char_len    db 0
+    bar_color       times 3 db 0
+    bg_color        times 3 db 0
     
-    debug_config_ok db "Configuración leída OK", 0xa, 0
-    debug_config_ok_len equ $ - debug_config_ok
-    
-    debug_inv_ok    db "Inventario leído OK", 0xa, 0
-    debug_inv_ok_len equ $ - debug_inv_ok
-    
-    ; --- Códigos ANSI por defecto ---
-    default_char    db 0xe2, 0x96, 0xa0  ; Carácter Unicode ■ (bloque sólido)
-    default_char_len equ 3
-    
-    default_bar_color  db "92"           ; Verde brillante por defecto
-    default_bg_color   db "40"           ; Fondo negro por defecto
-    
-    ; --- Variables para configuración ---
-    bar_char        times 4 db 0         ; Carácter para las barras
-    bar_char_len    db 0                 ; Longitud del carácter
-    bar_color       times 3 db 0         ; Código color barras
-    bg_color        times 3 db 0         ; Código color fondo
-    
-    ; --- Buffer para lectura de archivos ---
+    ; Buffer para lectura
     buffer          times 1024 db 0
-    buffer_len      equ $ - buffer
     
-    ; --- Estructura para items del inventario ---
-    ; Cada item: nombre (32 bytes) : cantidad (4 bytes)
-    struc inventario_item
+    ; Estructura de inventario
+    struc item
         .name:      resb 32
         .quantity:  resd 1
     endstruc
     
-    ; --- Array para almacenar items ---
-    items           times 10 * inventario_item_size db 0
+    ; Array de items
+    items           times 10 * item_size db 0
     item_count      dd 0
     
-    ; --- Códigos ANSI ---
-    ansi_esc        db 0x1b, "["         ; Secuencia de escape ANSI
-    ansi_esc_len    equ $ - ansi_esc
-    
-    ansi_m          db "m"               ; Final de secuencia ANSI
-    ansi_reset      db 0x1b, "[0m"       ; Resetear colores
-    ansi_reset_len  equ $ - ansi_reset
-    
-    colon           db ":"               ; Separador
-    colon_len       equ $ - colon
-    
-    space           db " "               ; Espacio
-    newline         db 0xa               ; Nueva línea
+    ; Códigos ANSI
+    ansi_esc        db 0x1B, "["
+    ansi_m          db "m", 0
+    ansi_reset      db 0x1B, "[0m", 0
+    colon           db ":", 0
+    space           db " ", 0
+    newline         db 10, 0
 
 section .bss
-    fd_inventario   resd 1               ; File descriptor inventario
-    fd_config       resd 1               ; File descriptor configuración
-    temp_num        resb 12              ; Buffer para conversión numérica
+    fd_inventario   resq 1
+    fd_config       resq 1
+    temp_num        resb 12
 
 section .text
     global _start
 
-; PROGRAMA PRINCIPAL - CON STACK ALINEADO
 _start:
-    ; Alinear stack a 16-bytes para evitar segmentation fault
+    ; Alinear stack
     and rsp, -16
-
-    ; Mensaje de inicio para debug
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, debug_start
-    mov rdx, debug_start_len
-    syscall
-
-    ; Paso 1: Leer y procesar config.ini
+    
+    ; Leer configuración
     call leer_configuracion
+    test rax, rax
+    jnz _exit_error
     
-    ; Paso 2: Leer y procesar inventario.txt
+    ; Leer inventario
     call leer_inventario
+    test rax, rax
+    jnz _exit_error
     
-    ; Paso 3: Ordenar los datos alfabéticamente
+    ; Ordenar items
     call ordenar_inventario
     
-    ; Paso 4: Dibujar el gráfico de barras
+    ; Dibujar gráfico
     call dibujar_grafico
     
-    ; Salir del programa
-    mov rax, 60             ; sys_exit
-    mov rdi, 0              ; código de salida 0
+    ; Salir
+    mov rax, 60
+    xor rdi, rdi
     syscall
 
-; LEER CONFIGURACIÓN
+; Leer configuración desde config.ini
 leer_configuracion:
     push rbp
     mov rbp, rsp
-    sub rsp, 32
-
-    ; Abrir archivo config.ini
-    mov rax, 2              ; sys_open
-    mov rdi, config_file
-    mov rsi, 0              ; O_RDONLY
-    mov rdx, 0
-    syscall
     
-    ; Verificar error
+    ; Abrir archivo
+    mov rax, 2
+    mov rdi, config_file
+    xor rsi, rsi
+    xor rdx, rdx
+    syscall
     cmp rax, 0
-    jl .error_open
+    jl .error
     mov [fd_config], rax
     
-    ; Leer contenido del archivo
-    mov rax, 0              ; sys_read
+    ; Leer contenido
+    mov rax, 0
     mov rdi, [fd_config]
     mov rsi, buffer
-    mov rdx, buffer_len
+    mov rdx, 1024
     syscall
-    
     cmp rax, 0
-    jl .error_read
+    jl .error
     
-    ; Inicializar valores por defecto
+    ; Valores por defecto
     mov rsi, default_char
     mov rdi, bar_char
-    mov rcx, default_char_len
+    mov rcx, 3
     rep movsb
-    mov byte [bar_char_len], default_char_len
+    mov byte [bar_char_len], 3
     
     mov rsi, default_bar_color
     mov rdi, bar_color
-    mov rcx, 2
+    mov rcx, 3
     rep movsb
-    mov byte [bar_color + 2], 0
     
     mov rsi, default_bg_color
     mov rdi, bg_color
-    mov rcx, 2
+    mov rcx, 3
     rep movsb
-    mov byte [bg_color + 2], 0
-
-    ; Procesar configuración
-    mov rsi, buffer         ; Puntero al buffer
-    mov rcx, rax            ; Longitud leída
     
-.procesar_linea:
-    ; Buscar 'caracter_barra:'
-    mov rdi, .caracter_barra_str
-    mov rdx, .caracter_barra_len
+    ; Procesar configuración
+    mov rsi, buffer
+    mov rcx, rax
+    
+    ; Buscar caracter_barra
+    mov rdi, .str_caracter
+    mov rdx, .len_caracter
     call buscar_substring
     test rax, rax
-    jz .procesar_color_barra
+    jz .check_color_barra
     
-    ; Extraer carácter de barra
-    add rsi, .caracter_barra_len
+    add rsi, rax
     mov rdi, bar_char
     call extraer_valor
     mov [bar_char_len], al
-    jmp .siguiente_linea
-
-.procesar_color_barra:
-    ; Buscar 'color_barra:'
-    mov rdi, .color_barra_str
-    mov rdx, .color_barra_len
+    
+.check_color_barra:
+    mov rsi, buffer
+    mov rdi, .str_color_barra
+    mov rdx, .len_color_barra
     call buscar_substring
     test rax, rax
-    jz .procesar_color_fondo
+    jz .check_color_fondo
     
-    ; Extraer color de barra
-    add rsi, .color_barra_len
+    add rsi, rax
     mov rdi, bar_color
     call extraer_valor_num
-    jmp .siguiente_linea
-
-.procesar_color_fondo:
-    ; Buscar 'color_fondo:'
-    mov rdi, .color_fondo_str
-    mov rdx, .color_fondo_len
+    
+.check_color_fondo:
+    mov rsi, buffer
+    mov rdi, .str_color_fondo
+    mov rdx, .len_color_fondo
     call buscar_substring
     test rax, rax
-    jz .siguiente_linea
+    jz .close_file
     
-    ; Extraer color de fondo
-    add rsi, .color_fondo_len
+    add rsi, rax
     mov rdi, bg_color
     call extraer_valor_num
-
-.siguiente_linea:
-    ; Avanzar a siguiente línea
-    cmp byte [rsi], 0
-    je .cerrar_archivo
-    cmp byte [rsi], 0xa
-    jne .avanzar
-    inc rsi
-    jmp .procesar_linea
-
-.avanzar:
-    inc rsi
-    dec rcx
-    jnz .avanzar
-
-.cerrar_archivo:
-    ; Cerrar archivo de configuración
-    mov rax, 3              ; sys_close
+    
+.close_file:
+    mov rax, 3
     mov rdi, [fd_config]
     syscall
     
-    ; Debug: configuración OK
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, debug_config_ok
-    mov rdx, debug_config_ok_len
-    syscall
+    xor rax, rax
+    jmp .exit
     
-    mov rsp, rbp
-    pop rbp
-    ret
-
-.error_open:
+.error:
     mov rax, 1
     mov rdi, 1
     mov rsi, error_open
-    mov rdx, error_open_len
-    syscall
-    jmp _exit_error
-
-.error_read:
+    call print_string
     mov rax, 1
-    mov rdi, 1
-    mov rsi, error_read
-    mov rdx, error_read_len
-    syscall
-    jmp _exit_error
+    
+.exit:
+    pop rbp
+    ret
 
-.caracter_barra_str db "caracter_barra:"
-.caracter_barra_len equ $ - .caracter_barra_str
+.str_caracter      db "caracter_barra:", 0
+.len_caracter      equ $ - .str_caracter - 1
+.str_color_barra   db "color_barra:", 0
+.len_color_barra   equ $ - .str_color_barra - 1
+.str_color_fondo   db "color_fondo:", 0
+.len_color_fondo   equ $ - .str_color_fondo - 1
 
-.color_barra_str db "color_barra:"
-.color_barra_len equ $ - .color_barra_str
-
-.color_fondo_str db "color_fondo:"
-.color_fondo_len equ $ - .color_fondo_str
-
-; LEER INVENTARIO
+; Leer inventario desde inventario.txt
 leer_inventario:
     push rbp
     mov rbp, rsp
-    sub rsp, 32             ; Reservar espacio en stack    
-
-    ; Abrir archivo inventario.txt
-    mov rax, 2              ; sys_open
-    mov rdi, inventario_file
-    mov rsi, 0              ; O_RDONLY
-    mov rdx, 0
-    syscall
+    push r12
+    push r13
     
+    ; Abrir archivo
+    mov rax, 2
+    mov rdi, inventario_file
+    xor rsi, rsi
+    xor rdx, rdx
+    syscall
     cmp rax, 0
-    jl .error_open
+    jl .error
     mov [fd_inventario], rax
     
-    ; Leer contenido del archivo
-    mov rax, 0              ; sys_read
+    ; Leer contenido
+    mov rax, 0
     mov rdi, [fd_inventario]
     mov rsi, buffer
-    mov rdx, buffer_len
+    mov rdx, 1024
     syscall
-    
     cmp rax, 0
-    jl .error_read
+    jl .error
     
-    ; Procesar líneas del inventario
+    ; Procesar líneas
     mov rsi, buffer
     mov rdi, items
-    mov rcx, rax
-    mov dword [item_count], 0
-
-.procesar_linea:
-    ; Saltar espacios y newlines
-    cmp byte [rsi], 0xa
-    je .avanzar
-    cmp byte [rsi], ' '
-    je .avanzar
+    mov r12, rax
+    xor r13, r13
+    
+.process_line:
     cmp byte [rsi], 0
-    je .fin_procesamiento
-
-    ; Verificar límite de items
-    mov eax, [item_count]
-    cmp eax, 10
-    jge .fin_procesamiento
+    je .close_file
+    cmp byte [rsi], 10
+    je .next_line
     
-    ; Copiar nombre del item
-    mov rdx, rdi
-    add rdx, inventario_item.name
-    mov r8, 0               ; contador de caracteres
+    ; Copiar nombre
+    mov rcx, rdi
+    add rcx, item.name
+    xor rdx, rdx
     
-.copiar_nombre:
+.copy_name:
     mov al, [rsi]
     cmp al, ':'
-    je .encontrar_cantidad
-    cmp al, 0xa
-    je .encontrar_cantidad
+    je .found_colon
+    cmp al, 10
+    je .found_colon
     cmp al, 0
-    je .encontrar_cantidad
-
-    ; Verificar límite de nombre
-    cmp r8, 31
-    jge .avanzar
+    je .found_colon
+    cmp rdx, 31
+    jge .next_char
     
-    mov [rdx], al
-    inc rsi
+    mov [rcx], al
+    inc rcx
     inc rdx
-    inc r8
-    jmp .copiar_nombre
-
-.encontrar_cantidad:
-    ; Asegurar que el nombre termina en null
-    mov byte [rdx], 0
-
-    ; Buscar ':' y extraer cantidad
-    cmp byte [rsi], ':'
-    jne .avanzar
+    
+.next_char:
     inc rsi
+    dec r12
+    jnz .copy_name
+    
+.found_colon:
+    mov byte [rcx], 0
+    cmp byte [rsi], ':'
+    jne .next_line
+    inc rsi
+    dec r12
     
     ; Convertir número
     xor rax, rax
     xor rbx, rbx
     
-.convertir_numero:
+.convert_number:
     mov bl, [rsi]
-    cmp bl, 0xa
-    je .guardar_cantidad
+    cmp bl, 10
+    je .save_quantity
     cmp bl, 0
-    je .guardar_cantidad
+    je .save_quantity
     cmp bl, '0'
-    jb .avanzar
+    jb .next_line
     cmp bl, '9'
-    ja .avanzar
+    ja .next_line
     
     sub bl, '0'
     imul rax, 10
     add rax, rbx
     inc rsi
-    jmp .convertir_numero
-
-.guardar_cantidad:
-    mov [rdi + inventario_item.quantity], eax
+    dec r12
+    jnz .convert_number
+    
+.save_quantity:
+    mov [rdi + item.quantity], eax
     inc dword [item_count]
-    add rdi, inventario_item_size
-
-.avanzar:
+    add rdi, item_size
+    inc r13
+    cmp r13, 10
+    jge .close_file
+    
+.next_line:
     cmp byte [rsi], 0
-    je .fin_procesamiento
+    je .close_file
+    cmp byte [rsi], 10
+    jne .skip_char
     inc rsi
-    dec rcx
-    jnz .procesar_linea
-
-.fin_procesamiento:
-    ; Cerrar archivo de inventario
-    mov rax, 3              ; sys_close
+    dec r12
+    jnz .process_line
+    jmp .close_file
+    
+.skip_char:
+    inc rsi
+    dec r12
+    jnz .process_line
+    
+.close_file:
+    mov rax, 3
     mov rdi, [fd_inventario]
     syscall
+    xor rax, rax
+    jmp .exit
     
-    ; Debug: inventario OK
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, debug_inv_ok
-    mov rdx, debug_inv_ok_len
-    syscall
-    
-    mov rsp, rbp
-    pop rbp
-    ret
-
-.error_open:
+.error:
     mov rax, 1
     mov rdi, 1
     mov rsi, error_open
-    mov rdx, error_open_len
-    syscall
-    jmp _exit_error
-
-.error_read:
+    call print_string
     mov rax, 1
-    mov rdi, 1
-    mov rsi, error_read
-    mov rdx, error_read_len
-    syscall
-    jmp _exit_error
+    
+.exit:
+    pop r13
+    pop r12
+    pop rbp
+    ret
 
-; ORDENAR INVENTARIO (Bubble Sort)
+; Ordenar inventario alfabéticamente (Bubble Sort)
 ordenar_inventario:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push r12
-    push r13
-    push r14
-
-    mov ecx, [item_count]
-    cmp ecx, 1
-    jle .fin_ordenamiento
-    
-    dec ecx                 ; outer loop counter (n-1)
-    mov r12, items          ; pointer to items
-    
-.outer_loop:
-    mov r13, r12            ; current item
-    mov r14d, [item_count]  ; inner loop counter
-    dec r14d
-    
-.inner_loop:
-    mov rsi, r13            ; item 1
-    mov rdi, r13
-    add rdi, inventario_item_size  ; item 2
-    
-    ; Comparar nombres
-    mov rax, rsi
-    add rax, inventario_item.name
-    mov rbx, rdi
-    add rbx, inventario_item.name
-    
-    call comparar_strings
-    jbe .no_intercambiar
-    
-    ; Intercambiar items
-    call intercambiar_items
-
-.no_intercambiar:
-    mov r13, rdi            ; move to next item
-    dec r14d
-    jnz .inner_loop
-    
-    dec ecx
-    jnz .outer_loop
-
-.fin_ordenamiento:
-    pop r14
-    pop r13
-    pop r12
-    pop rbx
-    pop rbp
-    ret
-
-; DIBUJAR GRÁFICO
-dibujar_grafico:
-    push rbp
-    mov rbp, rsp
-    push r12
-    push r13
-
-    mov r12, items          ; pointer to items
-    mov r13d, [item_count]  ; item count
-    test r13d, r13d
-    jz .fin_dibujo
-    
-.dibujar_item:
-    ; Verificar que tenemos un item válido
-    cmp byte [r12 + inventario_item.name], 0
-    je .siguiente_item
-    
-    ; Imprimir nombre del item
-    mov rax, 1              ; sys_write
-    mov rdi, 1
-    lea rsi, [r12 + inventario_item.name]
-    call strlen
-    mov rdx, rax
-    syscall
-    
-    ; Imprimir ": "
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, colon
-    mov rdx, colon_len
-    syscall
-    
-    ; Aplicar colores ANSI
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, ansi_esc
-    mov rdx, ansi_esc_len
-    syscall
-    
-    ; Color de fondo
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, bg_color
-    call strlen
-    mov rdx, rax
-    syscall
-    
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, ansi_m
-    mov rdx, 1
-    syscall
-    
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, ansi_esc
-    mov rdx, ansi_esc_len
-    syscall
-    
-    ; Color de barra
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, bar_color
-    call strlen
-    mov rdx, rax
-    syscall
-    
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, ansi_m
-    mov rdx, 1
-    syscall
-    
-    ; Dibujar barras según cantidad
-    mov eax, [r12 + inventario_item.quantity]
-    test eax, eax
-    jz .fin_barras
-
-    movzx rcx, byte [bar_char_len]
-    
-.dibujar_barras:
-    push rax
-    push rcx
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, bar_char
-    mov rdx, rcx
-    syscall
-    pop rcx
-    pop rax
-    dec eax
-    jnz .dibujar_barras
-
-.fin_barras:
-    ; Resetear colores
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, ansi_reset
-    mov rdx, ansi_reset_len
-    syscall
-    
-    ; Imprimir espacio y cantidad numérica
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, space
-    mov rdx, 1
-    syscall
-    
-    ; Convertir cantidad a string
-    mov eax, [r12 + inventario_item.quantity]
-    mov rdi, temp_num
-    call int_to_string
-    
-    mov rdx, rax            ; longitud del número
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, temp_num
-    syscall
-    
-    ; Nueva línea
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, newline
-    mov rdx, 1
-    syscall
-    
-.siguiente_item:
-    add r12, inventario_item_size
-    dec r13d
-    jnz .dibujar_item
-
-.fin_dibujo:
-    pop r13
-    pop r12
-    pop rbp
-    ret
-
-; FUNCIONES AUXILIARES
-
-; Buscar substring en buffer
-buscar_substring:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push r12
-    push r13
-    push r14
-
-    mov r12, rdi            ; substring a buscar
-    mov r13, rdx            ; longitud del substring
-    mov r14, rsi            ; buffer
-    mov rbx, rcx            ; buffer length
-
-.buscar_loop:
-    mov rdi, r12
-    mov rsi, r14
-    mov rcx, r13
-    
-.comparar:
-    mov al, [rdi]
-    cmp al, [rsi]
-    jne .no_coincide
-    
-    inc rdi
-    inc rsi
-    dec rcx
-    jnz .comparar
-    
-    ; Coincidencia encontrada
-    mov rax, 1
-    jmp .fin_busqueda
-
-.no_coincide:
-    inc r14
-    dec rbx
-    jnz .buscar_loop
-    
-    ; No encontrado
-    xor rax, rax
-
-.fin_busqueda:
-    pop r14
-    pop r13
-    pop r12
-    pop rbx
-    pop rbp
-    ret
-
-; Extraer valor de configuración (texto)
-extraer_valor:
-    push rbp
-    mov rbp, rsp
-    xor rax, rax
-    
-.extraer_loop:
-    mov al, [rsi]
-    cmp al, 0xa
-    je .fin_extraccion
-    cmp al, 0
-    je .fin_extraccion
-    cmp al, ' '
-    je .saltar_espacio
-    
-    mov [rdi], al
-    inc rdi
-    inc rsi
-    jmp .extraer_loop
-
-.saltar_espacio:
-    inc rsi
-    jmp .extraer_loop
-
-.fin_extraccion:
-    mov byte [rdi], 0
-    pop rbp
-    ret
-
-; Extraer valor numérico de configuración
-extraer_valor_num:
-    push rbp
-    mov rbp, rsp
-    xor rax, rax
-    
-.extraer_loop:
-    mov al, [rsi]
-    cmp al, 0xa
-    je .fin_extraccion
-    cmp al, 0
-    je .fin_extraccion
-    cmp al, '0'
-    jb .saltar
-    cmp al, '9'
-    ja .saltar
-    
-    mov [rdi], al
-    inc rdi
-
-.saltar:
-    inc rsi
-    jmp .extraer_loop
-
-.fin_extraccion:
-    mov byte [rdi], 0
-    pop rbp
-    ret
-
-; Comparar dos strings
-comparar_strings:
-    push rbp
-    mov rbp, rsp
-    push rbx
-
-.comparar_loop:
-    mov al, [rax]
-    mov bl, [rbx]
-    test al, al
-    jz .fin_comparacion
-    test bl, bl
-    jz .fin_comparacion
-    cmp al, bl
-    jne .fin_comparacion
-    inc rax
-    inc rbx
-    jmp .comparar_loop
-
-.fin_comparacion:
-    sub al, bl
-    pop rbx
-    pop rbp
-    ret
-
-; Intercambiar dos items del inventario
-intercambiar_items:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push r12
-    push r13
-
-    mov r12, rsi            ; item 1
-    mov r13, rdi            ; item 2
-    mov rcx, inventario_item_size
-    xor rax, rax
-    xor rbx, rbx
-
-.intercambiar_loop:
-    mov al, [r12]
-    mov bl, [r13]
-    mov [r12], bl
-    mov [r13], al
-    inc r12
-    inc r13
-    dec rcx
-    jnz .intercambiar_loop
-
-    pop r13
-    pop r12
-    pop rbx
-    pop rbp
-    ret
-
-; Calcular longitud de string
-strlen:
-    push rbp
-    mov rbp, rsp
-    xor rcx, rcx
-    
-.calcular_longitud:
-    cmp byte [rsi + rcx], 0
-    je .fin_calculo
-    inc rcx
-    jmp .calcular_longitud
-    
-.fin_calculo:
-    mov rax, rcx
-    pop rbp
-    ret
-
-; Convertir entero a string
-int_to_string:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push rdx
-    push rdi
-    
-    mov rbx, 10
-    xor rcx, rcx
-    test rax, rax
-    jnz .convertir_digitos
-    
-    ; Caso especial: número 0
-    mov byte [rdi], '0'
-    mov byte [rdi + 1], 0
-    mov rax, 1
-    jmp .fin_conversion
-    
-.convertir_digitos:
-    xor rdx, rdx
-    div rbx
-    add dl, '0'
-    push rdx
-    inc rcx
-    test rax, rax
-    jnz .convertir_digitos
-
-    mov rax, rcx            ; guardar longitud
-
-.pop_digitos:
-    pop rdx
-    mov [rdi], dl
-    inc rdi
-    dec rcx
-    jnz .pop_digitos
-
-.fin_conversion:
-    mov byte [rdi], 0
-    pop rdi
-    pop rdx
-    pop rbx
-    pop rbp
-    ret
-
-; Salida con error
-_exit_error:
-    mov rax, 60
-    mov rdi, 1
-    syscall
+   
