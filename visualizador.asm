@@ -378,19 +378,6 @@ dibujar_grafico:
     push r13
     
     mov r12, items
-    ; Establecer colores ANSI una sola vez
-    mov rsi, ansi_esc
-    call print_string
-    mov rsi, bg_color
-    call print_string
-    mov rsi, ansi_m
-    call print_string
-    mov rsi, ansi_esc
-    call print_string
-    mov rsi, bar_color
-    call print_string
-    mov rsi, ansi_m
-    call print_string
     mov r13d, [item_count]
     test r13d, r13d
     jz .exit
@@ -402,13 +389,27 @@ dibujar_grafico:
     ; Nombre
     mov rsi, r12
     add rsi, item.name
+    call print_string
     
     ; Separador
     mov rsi, colon
+    call print_string
     
     ; Color fondo
+    mov rsi, ansi_esc
+    call print_string
+    mov rsi, bg_color
+    call print_string
+    mov rsi, ansi_m
+    call print_string
     
     ; Color barra
+    mov rsi, ansi_esc
+    call print_string
+    mov rsi, bar_color
+    call print_string
+    mov rsi, ansi_m
+    call print_string
     
     ; Barras
     mov ecx, [r12 + item.quantity]
@@ -428,18 +429,22 @@ dibujar_grafico:
 .no_bars:
     ; Reset color
     mov rsi, ansi_reset
+    call print_string
     
     ; Espacio
     mov rsi, space
+    call print_string
     
     ; Cantidad
     mov eax, [r12 + item.quantity]
     mov rdi, temp_num
     call int_to_string
     mov rsi, temp_num
+    call print_string
     
     ; Nueva línea
     mov rsi, newline
+    call print_string
     
 .next_item:
     add r12, item_size
