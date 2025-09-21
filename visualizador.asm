@@ -323,4 +323,391 @@ leer_inventario:
 
 ; Ordenar inventario alfabéticamente (Bubble Sort)
 ordenar_inventario:
-   
+    push rbp
+    mov rbp, rsp
+    push r12
+    push r13
+    push r14
+    
+    mov ecx, [item_count]
+    cmp ecx, 1
+    jle .exit
+    
+    dec ecx
+    mov r12, items
+    
+.outer_loop:
+    mov r13, r12
+    mov r14d, [item_count]
+    dec r14d
+    
+.inner_loop:
+    mov rsi, r13
+    mov rdi, r13
+    add rdi, item_size
+    
+    mov rax, rsi
+    add rax, item.name
+    mov rbx, rdi
+    add rbx, item.name
+    
+    call comparar_strings
+    jle .no_swap
+    
+    call intercambiar_items
+    
+.no_swap:
+    mov r13, rdi
+    dec r14d
+    jnz .inner_loop
+    
+    dec ecx
+    jnz .outer_loop
+    
+.exit:
+    pop r14
+    pop r13
+    pop r12
+    pop rbp
+    ret
+
+; Dibujar gráfico de barras
+dibujar_grafico:
+    push rbp
+    mov rbp, rsp
+    push r12
+    push r13
+    
+    mov r12, items
+    mov r13d, [item_count]
+    test r13d, r13d
+    jz .exit
+    
+.draw_item:
+    cmp byte [r12 + item.name], 0
+    je .next_item
+    
+    ; Nombre
+    mov rsi, r12
+    add rsi, item.name
+    call print_string
+    
+    ; Separador
+    mov rsi, colon
+    call print_string
+    
+    ; Color fondo
+    mov rsi, ansi_esc
+    call print_string
+    mov rsi, bg_color
+    call print_string
+    mov rsi, ansi_m
+    call print_string
+    
+    ; Color barra
+    mov rsi, ansi_esc
+    call print_string
+    mov rsi, bar_color
+    call print_string
+    mov rsi, ansi_m
+    call print_string
+    
+    ; Barras
+    mov ecx, [r12 + item.quantity]
+    test ecx, ecx
+    jz .no_bars
+    
+.draw_bars:
+    push rcx
+    mov rsi, bar_char
+    movzx rdx, byte [bar_char_len]
+    mov rax, 1
+    mov rdi, 1
+    syscall
+    pop rcx
+    loop .draw_bars
+    
+.no_bars:
+    ; Reset color
+    mov rsi, ansi_reset
+    call print_string
+    
+    ; Espacio
+    mov rsi, space
+    call print_string
+    
+    ; Cantidad
+    mov eax, [r12 + item.quantity]
+    mov rdi, temp_num
+    call int_to_string
+    mov rsi, temp_num
+    call print_string
+    
+    ; Nueva línea
+    mov rsi, newline
+    call print_string
+    
+.next_item:
+    add r12, item_size
+    dec r13d
+    jnz .draw_item
+    
+.exit:
+    pop r13
+    pop r12
+    pop rbp
+    ret
+
+; ===== FUNCIONES AUXILIARES =====
+
+; Buscar substring
+buscar_substring:
+    push rbp
+    mov rbp, rsp
+    push r12
+    push r13
+    push r14
+    
+    mov r12, rdi    ; substring
+    mov r13, rdx    ; length
+    mov r14, rsi    ; buffer
+    mov rcx, 1024   ; max length
+    
+.search_loop:
+    mov rdi, r12
+    mov rsi, r14
+    mov rdx, r13
+    
+.compare:
+    mov al, [rdi]
+    cmp al, [rsi]
+    jne .no_match
+    inc rdi
+    inc rsi
+    dec rdx
+    jnz .compare
+    
+    ; Match found
+    mov rax, r13
+    jmp .exit
+    
+.no_match:
+    inc r14
+    loop .search_loop
+    
+    ; No match
+    xor rax, rax
+    
+.exit:
+    pop r14
+    pop r13
+    pop r12
+    pop rbp
+    ret
+
+; Extraer valor (texto)
+extraer_valor:
+    push rbp
+    mov rbp, rsp
+    xor rax, rax
+    
+.loop:
+    mov al, [rsi]
+    cmp al, 10
+    je .done
+    cmp al, 0
+    je .done
+    cmp al, ' '
+    je .skip
+    cmp al, 13
+    je .skip
+    
+    mov [rdi], al
+    inc rdi
+    inc rax
+    
+.skip:
+    inc rsi
+    jmp .loop
+    
+.done:
+    mov byte [rdi], 0
+    pop rbp
+    ret
+
+; Extraer valor numérico
+extraer_valor_num:
+    push rbp
+    mov rbp, rsp
+    
+.loop:
+    mov al, [rsi]
+    cmp al, 10
+    je .done
+    cmp al, 0
+    je .done
+    cmp al, '0'
+    jb .skip
+    cmp al, '9'
+    ja .skip
+    
+    mov [rdi], al
+    inc rdi
+    
+.skip:
+    inc rsi
+    jmp .loop
+    
+.done:
+    mov byte [rdi], 0
+    pop rbp
+    ret
+
+; Comparar strings
+comparar_strings:
+    push rbp
+    mov rbp, rsp
+    
+.compare:
+    mov al, [rax]
+    mov dl, [rbx]
+    test al, al
+    jz .check_second
+    test dl, dl
+    jz .greater
+    cmp al, dl
+    jne .difference
+    inc rax
+    inc rbx
+    jmp .compare
+
+.check_second:
+    test dl, dl
+    jz .equal
+    jmp .less
+
+.difference:
+    cmp al, dl
+    jl .less
+
+.greater:
+    mov eax, 1
+    jmp .exit
+
+.less:
+    mov eax, -1
+    jmp .exit
+
+.equal:
+    xor eax, eax
+
+.exit:
+    pop rbp
+    ret
+
+; Intercambiar items
+intercambiar_items:
+    push rbp
+    mov rbp, rsp
+    push r12
+    push r13
+    
+    mov r12, rsi
+    mov r13, rdi
+    mov rcx, item_size
+    
+.swap_loop:
+    mov al, [r12]
+    mov dl, [r13]
+    mov [r12], dl
+    mov [r13], al
+    inc r12
+    inc r13
+    loop .swap_loop
+    
+    pop r13
+    pop r12
+    pop rbp
+    ret
+
+; Convertir int to string
+int_to_string:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    
+    mov rbx, rdi
+    mov rdi, 10
+    xor rcx, rcx
+    
+    test rax, rax
+    jnz .convert
+    
+    ; Caso cero
+    mov byte [rbx], '0'
+    mov byte [rbx + 1], 0
+    mov rax, 1
+    jmp .exit
+    
+.convert:
+    xor rdx, rdx
+    div rdi
+    add dl, '0'
+    push rdx
+    inc rcx
+    test rax, rax
+    jnz .convert
+    
+    mov rax, rcx
+    
+.pop_digits:
+    pop rdx
+    mov [rbx], dl
+    inc rbx
+    loop .pop_digits
+    
+    mov byte [rbx], 0
+    
+.exit:
+    pop rbx
+    pop rbp
+    ret
+
+; Imprimir string
+print_string:
+    push rbp
+    mov rbp, rsp
+    push rsi
+    
+    mov rdi, rsi
+    call strlen
+    mov rdx, rax
+    mov rax, 1
+    mov rdi, 1
+    pop rsi
+    syscall
+    pop rbp
+    ret
+
+; Longitud de string
+strlen:
+    push rbp
+    mov rbp, rsp
+    xor rcx, rcx
+    
+.loop:
+    cmp byte [rdi + rcx], 0
+    je .done
+    inc rcx
+    jmp .loop
+    
+.done:
+    mov rax, rcx
+    pop rbp
+    ret
+
+; Salida con error
+_exit_error:
+    mov rax, 60
+    mov rdi, 1
+    syscall
