@@ -32,25 +32,25 @@ section .data
         .quantity:  resd 1
     endstruc
     
-    ; Array de items - usar tamaño explícito en lugar de item_size
-    items           times 10 * (32 + 4) db 0
+    ; Array de items
+    items           times 10 * 36 db 0
     item_count      dd 0
     
-    ; Códigos ANSI
-    ansi_esc        db 0x1B, "[", 0
-    ansi_m          db "m", 0
-    ansi_reset      db 0x1B, "[0m", 0
+    ; Códigos ANSI 
+    ansi_esc        db 0x1B, 0         ; ESC character
+    ansi_open       db "[", 0          ; ANSI open bracket
+    ansi_m          db "m", 0          ; ANSI end
+    ansi_reset      db 0x1B, "[0m", 0  ; ANSI reset code
+    
     colon           db ": ", 0
     space           db " ", 0
     newline         db 10, 0
-
-    ; 🔹 Buffer dinámico para secuencias ANSI
-    ansi_code       times 16 db 0
 
 section .bss
     fd_inventario   resq 1
     fd_config       resq 1
     temp_num        resb 12
+    char_buffer     resb 1
 
 section .text
     global _start
@@ -284,7 +284,7 @@ leer_inventario:
 .save_quantity:
     mov [rdi + item.quantity], eax
     inc dword [item_count]
-    add rdi, item_size
+    add rdi, ITEM_SIZE
     inc r13
     cmp r13, 10
     jge .close_file
@@ -326,7 +326,6 @@ leer_inventario:
 
 ; Ordenar inventario alfabéticamente (Bubble Sort)
 ordenar_inventario:
-   
     push rbp
     mov rbp, rsp
     push r12
@@ -348,7 +347,7 @@ ordenar_inventario:
 .inner_loop:
     mov rsi, r13
     mov rdi, r13
-    add rdi, item_size
+    add rdi, ITEM_SIZE
     
     mov rax, rsi
     add rax, item.name
@@ -375,12 +374,14 @@ ordenar_inventario:
     pop rbp
     ret
 
-; Dibujar gráfico de barras
+; DIBUJAR GRÁFICO CORREGIDO 
+
 dibujar_grafico:
     push rbp
     mov rbp, rsp
     push r12
     push r13
+    push r14
     
     mov r12, items
     mov r13d, [item_count]
@@ -391,33 +392,24 @@ dibujar_grafico:
     cmp byte [r12 + item.name], 0
     je .next_item
     
-    ; Nombre
+    ; Imprimir nombre 
     mov rsi, r12
     add rsi, item.name
     call print_string
     
-    ; Separador
-    mov rsi, colon
-    call print_string
+    ; Imprimir ": "
+    call imprimir_dos_puntos
+    call imprimir_espacio
     
-    ; Color fondo
-    mov rsi, bg_color
-    call build_ansi
-    mov rsi, ansi_code
-    call print_string
+    ; Aplicar colores ANSI 
+    call aplicar_colores_ansi
     
-    ; Color barra
-    mov rsi, bar_color
-    call build_ansi
-    mov rsi, ansi_code
-    call print_string
-    
-    ; Barras
+    ; Preparar para imprimir barras
     mov ecx, [r12 + item.quantity]
     test ecx, ecx
-    jz .no_bars
-    
-.draw_bars:
+    je .saltar_barras
+
+.imprimir_barras:
     push rcx
     mov rsi, bar_char
     movzx rdx, byte [bar_char_len]
@@ -425,40 +417,208 @@ dibujar_grafico:
     mov rdi, 1
     syscall
     pop rcx
-    loop .draw_bars
+    loop .imprimir_barras
+
+.saltar_barras:
+    ; Restaurar colores terminal
+    call imprimir_reset_ansi
     
-.no_bars:
-    ; Reset color
-    mov rsi, ansi_reset
-    call print_string
-    
-    ; Espacio
-    mov rsi, space
-    call print_string
-    
-    ; Cantidad
+    ; Imprimir cantidad numérica
+    call imprimir_espacio
     mov eax, [r12 + item.quantity]
-    mov rdi, temp_num
-    call int_to_string
-    mov rsi, temp_num
-    call print_string
+    call imprimir_numero
     
-    ; Nueva línea
-    mov rsi, newline
-    call print_string
+    ; Nueva línea siguiente 
+    call imprimir_nueva_linea
     
 .next_item:
-    add r12, item_size
+    add r12, ITEM_SIZE
     dec r13d
     jnz .draw_item
     
 .exit:
+    pop r14
     pop r13
     pop r12
     pop rbp
     ret
 
-; ===== FUNCIONES AUXILIARES =====
+; RUTINAS ANSI 
+
+aplicar_colores_ansi:
+    push rax
+    push rdi
+    push rsi
+    push rdx
+    push rbx
+    push rcx
+    
+    ; Imprimir código de escape para fondo
+    mov rax, 1                  ; syscall: sys_write
+    mov rdi, 1                  ; file descriptor: stdout
+    
+    ; Secuencia: ESC + [ + código_fondo + m
+    mov byte [char_buffer], 0x1B
+    mov rsi, char_buffer
+    mov rdx, 1
+    syscall
+    
+    mov byte [char_buffer], '['
+    mov rsi, char_buffer
+    mov rdx, 1
+    syscall
+    
+    ; Imprimir código de fondo
+    mov rsi, bg_color
+    call print_string_directo
+    
+    mov byte [char_buffer], 'm'
+    mov rsi, char_buffer
+    mov rdx, 1
+    syscall
+    
+    ; Imprimir código de escape para color de barra
+    mov byte [char_buffer], 0x1B
+    mov rsi, char_buffer
+    mov rdx, 1
+    syscall
+    
+    mov byte [char_buffer], '['
+    mov rsi, char_buffer
+    mov rdx, 1
+    syscall
+    
+    ; Imprimir código de barra
+    mov rsi, bar_color
+    call print_string_directo
+    
+    mov byte [char_buffer], 'm'
+    mov rsi, char_buffer
+    mov rdx, 1
+    syscall
+    
+    pop rcx
+    pop rbx
+    pop rdx
+    pop rsi
+    pop rdi
+    pop rax
+    ret
+
+imprimir_reset_ansi:
+    push rax
+    push rdi
+    push rsi
+    push rdx
+    
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, ansi_reset
+    mov rdx, 4  ; longitud de ESC[0m
+    syscall
+    
+    pop rdx
+    pop rsi
+    pop rdi
+    pop rax
+    ret
+
+imprimir_dos_puntos:
+    push rax
+    push rdi
+    push rsi
+    push rdx
+    
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, colon
+    mov rdx, 2  ; longitud de ": "
+    syscall
+    
+    pop rdx
+    pop rsi
+    pop rdi
+    pop rax
+    ret
+
+imprimir_espacio:
+    push rax
+    push rdi
+    push rsi
+    push rdx
+    
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, space
+    mov rdx, 1
+    syscall
+    
+    pop rdx
+    pop rsi
+    pop rdi
+    pop rax
+    ret
+
+imprimir_nueva_linea:
+    push rax
+    push rdi
+    push rsi
+    push rdx
+    
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, newline
+    mov rdx, 1
+    syscall
+    
+    pop rdx
+    pop rsi
+    pop rdi
+    pop rax
+    ret
+
+imprimir_numero:
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    
+    mov rdi, temp_num + 11
+    mov byte [rdi], 0
+    dec rdi
+    
+    mov rbx, 10
+    test eax, eax
+    jnz .convert
+    
+    ; Caso cero
+    mov byte [rdi], '0'
+    dec rdi
+    jmp .print
+    
+.convert:
+    xor edx, edx
+    div ebx
+    add dl, '0'
+    mov [rdi], dl
+    dec rdi
+    test eax, eax
+    jnz .convert
+    
+.print:
+    inc rdi
+    mov rsi, rdi
+    call print_string
+    
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    ret
+
+; FUNCIONES AUXILIARES
 
 ; Buscar substring
 buscar_substring:
@@ -614,7 +774,7 @@ intercambiar_items:
     
     mov r12, rsi
     mov r13, rdi
-    mov rcx, item_size
+    mov rcx, ITEM_SIZE
     
 .swap_loop:
     mov al, [r12]
@@ -630,62 +790,37 @@ intercambiar_items:
     pop rbp
     ret
 
-; Convertir int to string
-int_to_string:
-    push rbp
-    mov rbp, rsp
-    push rbx
+; Imprimir string directamente
+print_string_directo:
+    push rcx
+    push rdi
     
-    mov rbx, rdi
-    mov rdi, 10
-    xor rcx, rcx
+    ; Calcular longitud
+    mov rdi, rsi
+    call strlen
+    mov rdx, rax
     
-    test rax, rax
-    jnz .convert
-    
-    ; Caso cero
-    mov byte [rbx], '0'
-    mov byte [rbx + 1], 0
+    ; Imprimir
     mov rax, 1
-    jmp .exit
+    mov rdi, 1
+    syscall
     
-.convert:
-    xor rdx, rdx
-    div rdi
-    add dl, '0'
-    push rdx
-    inc rcx
-    test rax, rax
-    jnz .convert
-    
-    mov rax, rcx
-    
-.pop_digits:
-    pop rdx
-    mov [rbx], dl
-    inc rbx
-    loop .pop_digits
-    
-    mov byte [rbx], 0
-    
-.exit:
-    pop rbx
-    pop rbp
+    pop rdi
+    pop rcx
     ret
 
 ; Imprimir string
 print_string:
     push rbp
     mov rbp, rsp
-    push rsi
     
     mov rdi, rsi
     call strlen
     mov rdx, rax
     mov rax, 1
     mov rdi, 1
-    pop rsi
     syscall
+    
     pop rbp
     ret
 
@@ -703,40 +838,6 @@ strlen:
     
 .done:
     mov rax, rcx
-    pop rbp
-    ret
-
-build_ansi:
-    push rbp
-    mov rbp, rsp
-    push rdi
-    push rsi
-
-    mov rdi, ansi_code
-
-    ; Copiar "\x1B["
-    mov byte [rdi], 0x1B
-    inc rdi
-    mov byte [rdi], '['
-    inc rdi
-
-.copy_val:
-    mov al, [rsi]
-    cmp al, 0
-    je .copy_m
-    mov [rdi], al
-    inc rdi
-    inc rsi
-    jmp .copy_val
-
-.copy_m:
-    ; Agregar 'm' y terminador
-    mov byte [rdi], 'm'
-    inc rdi
-    mov byte [rdi], 0
-
-    pop rsi
-    pop rdi
     pop rbp
     ret
 
