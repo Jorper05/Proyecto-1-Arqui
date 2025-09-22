@@ -25,6 +25,9 @@ section .data
     
     ; Buffer para lectura
     buffer          times 1024 db 0
+
+    ; Buffer para construir códigos ANSI dinámicamente
+    ansi_code times 16 db 0
     
     ; Estructura de inventario
     struc item
@@ -396,19 +399,15 @@ dibujar_grafico:
     call print_string
     
     ; Color fondo
-    mov rsi, ansi_esc
-    call print_string
     mov rsi, bg_color
-    call print_string
-    mov rsi, ansi_m
+    call build_ansi
+    mov rsi, ansi_code
     call print_string
     
     ; Color barra
-    mov rsi, ansi_esc
-    call print_string
     mov rsi, bar_color
-    call print_string
-    mov rsi, ansi_m
+    call build_ansi
+    mov rsi, ansi_code
     call print_string
     
     ; Barras
@@ -702,6 +701,36 @@ strlen:
     
 .done:
     mov rax, rcx
+    pop rbp
+    ret
+
+build_ansi:
+    push rbp
+    mov rbp, rsp
+
+    ; Copiar prefijo "\x1B["
+    mov rdi, ansi_code
+    mov rsi, ansi_esc
+    call strcpy
+
+    ; Avanzar al final actual
+    mov rdi, ansi_code
+    call strlen
+    add rdi, ansi_code
+
+    ; Copiar el valor (bg_color o bar_color)
+    mov rsi, rsi    ; ya viene con el puntero correcto
+    call strcpy
+
+    ; Avanzar al final actual
+    mov rdi, ansi_code
+    call strlen
+    add rdi, ansi_code
+
+    ; Copiar sufijo "m"
+    mov rsi, ansi_m
+    call strcpy
+
     pop rbp
     ret
 
