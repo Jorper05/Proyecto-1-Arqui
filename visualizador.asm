@@ -1,6 +1,3 @@
-; Compilar: nasm -f elf64 visualizador.asm -o visualizador.o
-; Enlazar: ld visualizador.o -o visualizador
-; Ejecutar: ./visualizador
 
 ; Sección de datos definidos
 section .data
@@ -95,7 +92,7 @@ _start:
 
 
      ; 3. Interpretar parámetros de configuración
-    ; =================================================
+    
     lea rsi, [rel memoria_temp]     ; inicio buffer
     xor r8, r8                      ; índice parámetro
 
@@ -160,7 +157,7 @@ siguiente_linea:
 
 fin_analisis:
 
-    ; 4. Abrir inventario.txt
+    ; Acceder a archivo de inventario
 
     mov rax, 2
     lea rdi, [rel archivo_inventario]
@@ -170,7 +167,7 @@ fin_analisis:
     cmp rax, 0
     js error_inventario
 
-    ; 5. Leer inventario.txt en buffer
+    ; Cargar contenido de inventario
 
     lea rsi, [rel memoria_temp]
     mov rdx, 256
@@ -191,14 +188,14 @@ fin_analisis:
     mov byte [rcx], 0
 
 
-    ; 6. Inicializar contadores numéricos
+    ; 6. Reiniciar acumuladores numéricos
 
     mov qword [valor1], 0
     mov qword [valor2], 0
     mov qword [valor3], 0
     mov qword [valor4], 0
 
-    ; 7. Copiar líneas y extraer números
+    ; Procesar líneas y extraer valores
 
     lea rsi, [rel memoria_temp]
     lea rdi, [rel producto1]
@@ -279,7 +276,7 @@ continuar_proceso:
     dec rcx
     jnz near procesar_lineas
 
-    ; 8. Construir barras (con códigos ANSI de color)
+    ; Generar representaciones gráficas
 
    lea rsi, [rel valor1]
     lea rdi, [rel grafica1]
@@ -298,7 +295,7 @@ continuar_proceso:
     call generar_grafica
 
 
-    ; 9. Concatenar línea + barra 
+    ; Combinar nombre y gráfica 
 
     lea rsi, [rel producto1]
     lea rdx, [rel grafica1]
@@ -321,7 +318,7 @@ continuar_proceso:
     call combinar_cadenas
 
 
-    ; 10. Ordenar alfabéticamente outs[]
+    ; Ordenar resultados alfabéticamente
 
     mov rcx, 4
 bucle_externo:
@@ -351,7 +348,7 @@ bucle_interno:
 .siguiente_externo:
     loop bucle_externo
 
-    ; 11. Concatenar líneas ordenadas en out_sorted
+    ; Unir líneas ordenadas
 
      lea rdi, [rel salida_ordenada]
     mov rcx, 4
@@ -397,7 +394,7 @@ bucle_union:
 
 ; FUNCIONES AUXILIARES
 
-comparar_cadenas: ; comparar_cadenas: evalúa orden alfabético
+comparar_cadenas: ; evalúa orden alfabético
     xor rax, rax
 .ciclo:
     mov al, [rsi]
@@ -417,7 +414,7 @@ comparar_cadenas: ; comparar_cadenas: evalúa orden alfabético
     sub rax, rdx
     ret
 
-mostrar_texto: ; mostrar_texto: presenta cadena por salida estándar
+mostrar_texto: ; presenta cadena por salida estándar
     push rsi
     mov rax, rsi
 .determinar_longitud:
@@ -434,7 +431,7 @@ mostrar_texto: ; mostrar_texto: presenta cadena por salida estándar
     syscall
     ret
 
-generar_grafica:; generar_grafica: crea barra visual con colores
+generar_grafica:       ; crea barra visual con colores
     ; Secuencia inicial de color
     mov byte [rdi], 27
     inc rdi
@@ -495,8 +492,7 @@ generar_grafica:; generar_grafica: crea barra visual con colores
     mov byte [rdi], 0
     ret
 
-concat: ; une linea + espacio + barra en destino
-combinar_cadenas:
+combinar_cadenas: ; fusiona nombre y gráfica
 .copiar_nombre:
     mov al, [rsi]
     cmp al, 0
